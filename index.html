@@ -10,12 +10,14 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <style>
 /* Le suivi des démarches auprès des fromageries. La page ne contient aucune donnée :
-   elle lit et écrit demarches.json dans le dépôt privé, avec la clé gardée par le navigateur. */
+   elle lit et écrit demarches.json et modeles.json dans le dépôt privé, avec la clé
+   gardée par le navigateur. Les prix viennent aussi du dépôt privé. */
 :root {
   --papier: #fbf8f2; --carte: #ffffff; --encre: #1f2a2c; --encre-douce: #5b6463; --filet: #e2ddd2;
   --or: #a8741a; --or-lavis: #f6efe1; --vert: #2e6a4c; --vert-lavis: #e6f0ea;
   --gris: #4f6470; --gris-lavis: #edf1f3; --rouge: #a63d2f; --rouge-lavis: #f8e9e6;
   --bleu: #2f5e8c; --bleu-lavis: #e7eef6; --violet: #6247b3; --violet-lavis: #efebf9;
+  --marque: #fbe7a6;
   --affiche: "Source Serif 4", Georgia, serif;
   --texte: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
   --chiffres: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -27,6 +29,7 @@
     --or: #d9a64a; --or-lavis: #2a2416; --vert: #6cc49a; --vert-lavis: #17281f;
     --gris: #9db3c0; --gris-lavis: #1d2529; --rouge: #e5867a; --rouge-lavis: #2e1c19;
     --bleu: #8fb6e0; --bleu-lavis: #18222d; --violet: #a993f0; --violet-lavis: #231d36;
+    --marque: #5a4a14;
     color-scheme: dark;
   }
 }
@@ -47,23 +50,34 @@ a { color: var(--bleu); }
 .etiquette { font-size: .72rem; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--encre-douce); }
 .doux { color: var(--encre-douce); }
 .chiffre { font-family: var(--chiffres); font-variant-numeric: tabular-nums; }
+.note { font-size: .85rem; color: var(--encre-douce); max-width: 78ch; }
 [hidden] { display: none !important; }
+mark { background: var(--marque); color: inherit; border-radius: 3px; padding: 0 2px; }
 
 /* Boutons */
 .bouton {
   border: 1.5px solid var(--encre); background: var(--carte); border-radius: 999px; padding: 8px 16px;
-  font-weight: 500; cursor: pointer; min-height: 40px; display: inline-flex; align-items: center; gap: 6px;
+  font-weight: 500; cursor: pointer; min-height: 40px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; color: var(--encre);
 }
 .bouton.plein { background: var(--encre); color: var(--papier); }
 .bouton.discret { border-color: var(--filet); }
 .bouton:disabled { opacity: .5; cursor: default; }
 .lien { background: none; border: 0; padding: 0; color: var(--bleu); cursor: pointer; text-decoration: underline; }
+.rangee-boutons { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* En-tête */
-.chapeau { display: grid; gap: 6px; border-bottom: 2px solid var(--encre); padding-bottom: 14px; }
+/* En-tête et onglets */
+.chapeau { display: grid; gap: 10px; border-bottom: 2px solid var(--encre); padding-bottom: 12px; }
 .chapeau .ligne { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+.onglets { display: flex; gap: 4px; flex-wrap: wrap; }
+.onglets a {
+  padding: 7px 14px; border-radius: 999px; text-decoration: none; color: var(--encre); font-weight: 500;
+  border: 1px solid transparent; min-height: 38px; display: inline-flex; align-items: center;
+}
+.onglets a[aria-current="page"] { background: var(--encre); color: var(--papier); }
+.onglets a:not([aria-current="page"]):hover { border-color: var(--filet); }
 .etat { font-size: .82rem; color: var(--encre-douce); min-height: 1.2em; }
 .etat.erreur { color: var(--rouge); }
+.vue { display: grid; gap: 28px; }
 
 /* Les chiffres du haut */
 .tableau-de-bord { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -72,8 +86,8 @@ a { color: var(--bleu); }
 .tuile .sous { font-size: .8rem; color: var(--encre-douce); }
 @media (max-width: 720px) { .tableau-de-bord { grid-template-columns: 1fr 1fr; } }
 
-/* Sections */
 section { display: grid; gap: 12px; }
+section > header { display: grid; gap: 4px; }
 .vide { color: var(--encre-douce); font-size: .92rem; padding: 4px 0; }
 
 /* Filtres */
@@ -112,7 +126,53 @@ section { display: grid; gap: 12px; }
 }
 .a-faire .quand { font-family: var(--chiffres); font-size: .85rem; white-space: nowrap; }
 
-/* La fiche d'une maison */
+/* L'offre */
+.deux { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.trois { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+@media (max-width: 720px) { .deux, .trois { grid-template-columns: 1fr; } }
+.boite { background: var(--carte); border: 1.5px solid var(--filet); border-radius: 10px; padding: 14px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.boite ul { margin: 0; padding-left: 1.1em; display: grid; gap: 3px; font-size: .92rem; }
+.boite .prix-grand { font-family: var(--chiffres); font-size: 1.35rem; font-weight: 500; }
+.boite.presence { border-color: var(--gris); background: var(--gris-lavis); }
+.boite.partenaire { border-color: var(--vert); background: var(--vert-lavis); }
+.boite.plus-tard { border-style: dashed; border-color: var(--or); background: var(--or-lavis); }
+.tableau { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--filet); text-align: right; }
+th:first-child, td:first-child { text-align: left; }
+thead th { font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--encre-douce); font-weight: 600; border-bottom: 2px solid var(--encre); vertical-align: bottom; }
+td { font-family: var(--chiffres); font-variant-numeric: tabular-nums; }
+td:first-child { font-family: var(--texte); }
+tr.choisie td { background: var(--vert-lavis); font-weight: 600; }
+tr.total td { border-top: 2px solid var(--encre); font-weight: 600; }
+.comparaison td { font-family: var(--texte); text-align: center; }
+.comparaison td:first-child { text-align: left; }
+.comparaison th:not(:first-child) { text-align: center; }
+.oui { color: var(--vert); font-weight: 600; }
+.non { color: var(--encre-douce); }
+.calculateur { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: .92rem; }
+.calculateur select { background: var(--carte); border: 1px solid var(--filet); border-radius: 8px; padding: 6px 10px; font-size: 16px; }
+.questions { display: grid; gap: 10px; }
+.questions details { background: var(--carte); border: 1px solid var(--filet); border-radius: 10px; padding: 10px 14px; }
+.questions summary { cursor: pointer; font-weight: 500; }
+.questions details p { margin-top: 8px; font-size: .92rem; }
+
+/* Les courriels */
+.courriels { display: grid; grid-template-columns: 260px 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .courriels { grid-template-columns: 1fr; } }
+.modeles { display: grid; gap: 6px; }
+.modeles button {
+  text-align: left; background: var(--carte); border: 1px solid var(--filet); border-radius: 10px; padding: 10px 12px; cursor: pointer; display: grid; gap: 2px;
+}
+.modeles button[aria-pressed="true"] { border-color: var(--encre); box-shadow: inset 3px 0 0 var(--encre); }
+.modeles .quand { font-size: .8rem; color: var(--encre-douce); }
+.apercu { background: var(--carte); border: 1px solid var(--filet); border-radius: 12px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.apercu .objet { font-weight: 600; overflow-wrap: anywhere; }
+.apercu .corps { white-space: pre-wrap; font-size: .95rem; overflow-wrap: anywhere; border-top: 1px solid var(--filet); padding-top: 12px; }
+.choix-maison { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.choix-maison select { background: var(--carte); border: 1px solid var(--filet); border-radius: 8px; padding: 8px 10px; font-size: 16px; max-width: 100%; }
+
+/* La fiche d'une maison, et l'édition d'un modèle */
 dialog {
   border: 0; padding: 0; background: var(--papier); color: var(--encre); border-radius: 14px;
   width: min(720px, calc(100vw - 24px)); max-height: calc(100dvh - 24px);
@@ -122,7 +182,7 @@ dialog::backdrop { background: rgba(10, 14, 15, .45); }
   dialog { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; margin: 0; }
 }
 .fiche { display: grid; grid-template-rows: auto 1fr auto; max-height: inherit; height: 100%; }
-.fiche header, .fiche footer { padding: 14px 18px; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+.fiche header, .fiche footer { padding: 14px 18px; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .fiche header { border-bottom: 1px solid var(--filet); padding-top: max(14px, env(safe-area-inset-top)); }
 .fiche footer { border-top: 1px solid var(--filet); padding-bottom: max(14px, env(safe-area-inset-bottom)); }
 .fiche .corps { overflow-y: auto; padding: 16px 18px; display: grid; gap: 22px; align-content: start; }
@@ -137,6 +197,7 @@ label.champ input, label.champ textarea, label.champ select, .ajout input {
   background: var(--carte); border: 1px solid var(--filet); border-radius: 8px; padding: 9px 10px; color: var(--encre); font-size: 16px; min-width: 0; width: 100%;
 }
 textarea { resize: vertical; min-height: 84px; }
+textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 .case { display: flex; gap: 8px; align-items: center; font-size: .92rem; }
 .case input { width: 20px; height: 20px; }
 .calcule { background: var(--or-lavis); border-radius: 8px; padding: 10px 12px; font-size: .9rem; display: grid; gap: 2px; }
@@ -154,6 +215,16 @@ textarea { resize: vertical; min-height: 84px; }
 .porte { max-width: 560px; margin: 8vh auto 0; background: var(--carte); border: 1px solid var(--filet); border-radius: 14px; padding: 22px; display: grid; gap: 14px; }
 .porte input { background: var(--papier); border: 1px solid var(--filet); border-radius: 8px; padding: 10px; font-size: 16px; width: 100%; font-family: var(--chiffres); }
 .pied { border-top: 1px solid var(--filet); padding-top: 12px; display: flex; gap: 16px; flex-wrap: wrap; font-size: .85rem; color: var(--encre-douce); }
+
+@media print {
+  :root { --papier: #fff; --carte: #fff; --encre: #111; --encre-douce: #444; --filet: #bbb; color-scheme: light; }
+  body { padding: 0; font-size: 12px; }
+  .onglets, .pied, .etat, #ajouter, .calculateur, .rangee-boutons { display: none !important; }
+  section, .boite, tr { break-inside: avoid; }
+  .questions details { border: 0; padding: 0; }
+  .questions details p { display: block; }
+  @page { margin: 12mm; }
+}
 </style>
 </head>
 <body>
@@ -175,26 +246,48 @@ textarea { resize: vertical; min-height: 84px; }
       <h1>Suivi des boutiques</h1>
       <button class="bouton" id="ajouter">+ Ajouter une fromagerie</button>
     </div>
+    <nav class="onglets" aria-label="Sections">
+      <a href="#suivi" data-vue="suivi">Suivi</a>
+      <a href="#offre" data-vue="offre">L'offre</a>
+      <a href="#courriels" data-vue="courriels">Courriels</a>
+    </nav>
     <p class="etat" id="etat" role="status" aria-live="polite"></p>
   </header>
 
-  <div class="tableau-de-bord" id="tableau-de-bord"></div>
+  <!-- Le suivi -->
+  <div class="vue" id="vue-suivi">
+    <div class="tableau-de-bord" id="tableau-de-bord"></div>
+    <section aria-labelledby="t-faire">
+      <h2 id="t-faire">À faire</h2>
+      <div class="a-faire" id="a-faire"></div>
+    </section>
+    <section aria-labelledby="t-maisons">
+      <h2 id="t-maisons">Les fromageries</h2>
+      <div class="filtres" id="filtres" role="toolbar" aria-label="Filtrer par statut"></div>
+      <div class="liste" id="liste"></div>
+    </section>
+  </div>
 
-  <section aria-labelledby="t-faire">
-    <h2 id="t-faire">À faire</h2>
-    <div class="a-faire" id="a-faire"></div>
-  </section>
+  <!-- L'offre, comparée -->
+  <div class="vue" id="vue-offre" hidden></div>
 
-  <section aria-labelledby="t-maisons">
-    <h2 id="t-maisons">Les fromageries</h2>
-    <div class="filtres" id="filtres" role="toolbar" aria-label="Filtrer par statut"></div>
-    <div class="liste" id="liste"></div>
-  </section>
+  <!-- Les courriels -->
+  <div class="vue" id="vue-courriels" hidden>
+    <div class="choix-maison">
+      <label for="maison-courriel" class="doux">Pour</label>
+      <select id="maison-courriel"></select>
+    </div>
+    <div class="courriels">
+      <div class="modeles" id="modeles" role="list"></div>
+      <div class="apercu" id="apercu"></div>
+    </div>
+    <p class="note">Les passages <mark>[EN SURBRILLANCE]</mark> sont à remplir avant l'envoi. Les autres valeurs (nom, adresses, prix, dates) viennent de la fiche de la fromagerie : remplis-la d'abord (contact, date de signature) pour qu'elles soient justes.</p>
+  </div>
 
   <footer class="pied">
     <button class="lien" id="recharger">Recharger</button>
     <button class="lien" id="exporter">Exporter les données</button>
-    <a id="lien-depot" target="_blank" rel="noopener">Voir le fichier sur GitHub</a>
+    <a id="lien-depot" target="_blank" rel="noopener">Voir les fichiers sur GitHub</a>
     <button class="lien" id="oublier">Oublier la clé sur cet appareil</button>
   </footer>
 </main>
@@ -204,9 +297,11 @@ textarea { resize: vertical; min-height: 84px; }
 <script>
 "use strict";
 
-// Où vivent les données : un fichier dans un dépôt privé.
-const DEPOT = { proprietaire: "Johnsmr429", nom: "suivi-boutiques-donnees", chemin: "demarches.json", branche: "main" };
+// Où vivent les données : deux fichiers dans un dépôt privé.
+const DEPOT = { proprietaire: "Johnsmr429", nom: "suivi-boutiques-donnees", branche: "main" };
+const FICHIERS = { demarches: "demarches.json", modeles: "modeles.json" };
 const CLE_STOCKEE = "fromaglobe.suivi.cle";
+const ADRESSE_FROMAGLOBE = "fromaglobe@gmail.com";
 
 const STATUTS = [
   { id: "a-contacter", nom: "À contacter" },
@@ -219,9 +314,14 @@ const STATUTS = [
 const nomDuStatut = id => (STATUTS.find(s => s.id === id) || STATUTS[0]).nom;
 
 let cle = null;
-let donnees = null;
-let sha = null;
+// Le contenu et l'empreinte (sha) de chaque fichier, tels que lus sur GitHub.
+const fichiers = { demarches: { donnees: null, sha: null }, modeles: { donnees: null, sha: null } };
+const D = () => fichiers.demarches.donnees;
 let filtre = "toutes";
+let vue = "suivi";
+let modeleChoisi = null;
+let maisonDuCourriel = "";
+let adressesCalculees = 1;
 
 // ---------- Petits outils ----------
 
@@ -263,14 +363,25 @@ function identifiant(nom) {
   return nom.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "maison";
 }
 
-function tarifs(m) {
-  const t = donnees.tarifs, n = Math.max(1, m.adresses.length);
+// ---------- Les prix (lus dans demarches.json, jamais écrits dans la page) ----------
+
+function prixPour(n) {
+  const t = D().tarifs;
+  n = Math.max(1, n);
   return {
     fondateur: t.fondateur.premiere + (n - 1) * t.fondateur.suivante,
     standard: t.standard.premiere + (n - 1) * t.standard.suivante,
+    miseEnPlaceFondateur: (n - 1) * t.fondateur.miseEnPlaceSuivante,
+    miseEnPlacePetite: t.standard.miseEnPlacePetite + (n - 1) * t.standard.miseEnPlaceSuivante,
+    miseEnPlaceGrande: t.standard.miseEnPlaceGrande + (n - 1) * t.standard.miseEnPlaceSuivante,
   };
 }
+const tarifs = m => prixPour(m.adresses.length);
 function prixRetenu(m) { const t = tarifs(m); return m.fondateur ? t.fondateur : t.standard; }
+function placesRestantes() {
+  const prises = D().maisons.filter(m => m.statut === "signee" && m.fondateur).length;
+  return Math.max(0, D().placesFondateur - prises);
+}
 
 function etat(texte, erreur = false) {
   const el = document.getElementById("etat");
@@ -280,11 +391,11 @@ function etat(texte, erreur = false) {
 
 // ---------- GitHub ----------
 
-const urlDuFichier = () => `https://api.github.com/repos/${DEPOT.proprietaire}/${DEPOT.nom}/contents/${DEPOT.chemin}`;
+const urlDu = chemin => `https://api.github.com/repos/${DEPOT.proprietaire}/${DEPOT.nom}/contents/${chemin}`;
 const entetes = () => ({ Authorization: `Bearer ${cle}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" });
 
-async function lisLeFichier() {
-  const r = await fetch(`${urlDuFichier()}?ref=${DEPOT.branche}&t=${Date.now()}`, { headers: entetes(), cache: "no-store" });
+async function lisLeFichier(chemin) {
+  const r = await fetch(`${urlDu(chemin)}?ref=${DEPOT.branche}&t=${Date.now()}`, { headers: entetes(), cache: "no-store" });
   if (r.status === 401) throw new Error("cle");
   if (r.status === 404) throw new Error("introuvable");
   if (!r.ok) throw new Error(`GitHub a répondu ${r.status}`);
@@ -292,8 +403,8 @@ async function lisLeFichier() {
   return { donnees: JSON.parse(base64VersTexte(j.content)), sha: j.sha };
 }
 
-async function ecrisLeFichier(contenu, message, shaActuel) {
-  const r = await fetch(urlDuFichier(), {
+async function ecrisLeFichier(chemin, contenu, message, shaActuel) {
+  const r = await fetch(urlDu(chemin), {
     method: "PUT",
     headers: { ...entetes(), "Content-Type": "application/json" },
     body: JSON.stringify({ message, content: texteVersBase64(JSON.stringify(contenu, null, 1) + "\n"), sha: shaActuel, branch: DEPOT.branche }),
@@ -309,22 +420,23 @@ async function ecrisLeFichier(contenu, message, shaActuel) {
 // Une modification = une fonction appliquée aux données. Si le fichier a changé
 // ailleurs entre-temps (Claude, un autre appareil), on relit et on rejoue la même
 // fonction sur la version fraîche : rien n'est écrasé.
-async function modifie(fonction, message) {
+async function modifie(quel, fonction, message) {
   etat("Enregistrement…");
+  const f = fichiers[quel];
   for (let essai = 0; essai < 3; essai++) {
-    const copie = structuredClone(donnees);
+    const copie = structuredClone(f.donnees);
     fonction(copie);
     copie.modifieLe = new Date().toISOString().slice(0, 19);
     try {
-      const r = await ecrisLeFichier(copie, message, sha);
+      const r = await ecrisLeFichier(FICHIERS[quel], copie, message, f.sha);
       if (!r.conflit) {
-        donnees = copie; sha = r.sha;
+        f.donnees = copie; f.sha = r.sha;
         etat(`Enregistré à ${new Date().toLocaleTimeString("fr-CA", { hour: "2-digit", minute: "2-digit" })}.`);
         dessine();
         return true;
       }
-      const frais = await lisLeFichier();
-      donnees = frais.donnees; sha = frais.sha;
+      const frais = await lisLeFichier(FICHIERS[quel]);
+      f.donnees = frais.donnees; f.sha = frais.sha;
     } catch (e) {
       afficheErreur(e);
       return false;
@@ -342,26 +454,33 @@ function afficheErreur(e) {
   else etat(`Impossible de joindre GitHub (${m}). Vérifie la connexion.`, true);
 }
 
-// ---------- Affichage ----------
+// ---------- Les vues ----------
 
-function dessine() {
-  dessineTableauDeBord();
-  dessineAFaire();
-  dessineFiltres();
-  dessineListe();
+function montreVue(nom) {
+  vue = ["suivi", "offre", "courriels"].includes(nom) ? nom : "suivi";
+  for (const v of ["suivi", "offre", "courriels"]) document.getElementById(`vue-${v}`).hidden = v !== vue;
+  document.querySelectorAll(".onglets a").forEach(a => { if (a.dataset.vue === vue) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  document.getElementById("ajouter").hidden = vue !== "suivi";
+  if (D()) dessine();
 }
 
+function dessine() {
+  if (vue === "suivi") { dessineTableauDeBord(); dessineAFaire(); dessineFiltres(); dessineListe(); }
+  if (vue === "offre") dessineOffre();
+  if (vue === "courriels") dessineCourriels();
+}
+
+// ---------- Le suivi ----------
+
 function dessineTableauDeBord() {
-  const maisons = donnees.maisons;
+  const maisons = D().maisons;
   const signees = maisons.filter(m => m.statut === "signee");
-  const fondatricesSignees = signees.filter(m => m.fondateur).length;
-  const places = Math.max(0, donnees.placesFondateur - fondatricesSignees);
   const parMois = signees.reduce((s, m) => s + prixRetenu(m), 0);
   const enCours = maisons.filter(m => !["signee", "refus"].includes(m.statut));
   const potentiel = enCours.reduce((s, m) => s + prixRetenu(m), 0);
   const adressesSignees = signees.reduce((s, m) => s + m.adresses.length, 0);
   document.getElementById("tableau-de-bord").innerHTML = `
-    <div class="tuile"><span class="etiquette">Places fondateur</span><span class="valeur">${places}<span class="doux" style="font-size:1rem"> / ${donnees.placesFondateur}</span></span><span class="sous">encore libres</span></div>
+    <div class="tuile"><span class="etiquette">Places fondateur</span><span class="valeur">${placesRestantes()}<span class="doux" style="font-size:1rem"> / ${D().placesFondateur}</span></span><span class="sous">encore libres</span></div>
     <div class="tuile"><span class="etiquette">Signées</span><span class="valeur">${signees.length}</span><span class="sous">${adressesSignees} adresse${adressesSignees > 1 ? "s" : ""}</span></div>
     <div class="tuile"><span class="etiquette">Signé, par mois</span><span class="valeur">${dollars(parMois)}</span><span class="sous">après les mois offerts</span></div>
     <div class="tuile"><span class="etiquette">En cours</span><span class="valeur">${dollars(potentiel)}</span><span class="sous">par mois si ${enCours.length} maison${enCours.length > 1 ? "s" : ""} signe${enCours.length > 1 ? "nt" : ""}</span></div>`;
@@ -370,16 +489,17 @@ function dessineTableauDeBord() {
 function dessineAFaire() {
   const el = document.getElementById("a-faire");
   const items = [];
-  for (const m of donnees.maisons) {
+  const t = D().tarifs.fondateur;
+  for (const m of D().maisons) {
     if (m.prochaineRelance && !["signee", "refus"].includes(m.statut) && joursJusqua(m.prochaineRelance) <= 7) {
-      items.push({ m, quand: m.prochaineRelance, quoi: "Relancer" });
+      items.push({ m, quand: m.prochaineRelance, quoi: m.statut === "rencontre" ? "Rencontre" : "Relancer" });
     }
     if (m.statut === "signee" && m.signeLe) {
-      const facture = plusMois(m.signeLe, m.fondateur ? donnees.tarifs.fondateur.moisOfferts : 0);
+      const facture = plusMois(m.signeLe, m.fondateur ? t.moisOfferts : 0);
       const j = joursJusqua(facture);
       if (j >= 0 && j <= 14) items.push({ m, quand: facture, quoi: "Première facture" });
       if (m.fondateur) {
-        const fin = plusMois(m.signeLe, 12 * donnees.tarifs.fondateur.anneesBloquees);
+        const fin = plusMois(m.signeLe, 12 * t.anneesBloquees);
         const k = joursJusqua(fin);
         if (k >= 0 && k <= 45) items.push({ m, quand: fin, quoi: "Fin du prix fondateur" });
       }
@@ -387,7 +507,7 @@ function dessineAFaire() {
   }
   items.sort((a, b) => a.quand.localeCompare(b.quand));
   if (!items.length) { el.innerHTML = `<p class="vide">Rien d'ici sept jours.</p>`; return; }
-  el.innerHTML = items.map((it, i) => {
+  el.innerHTML = items.map(it => {
     const j = joursJusqua(it.quand);
     const libelle = j < 0 ? `en retard de ${-j} j` : j === 0 ? "aujourd'hui" : j === 1 ? "demain" : dateCourte(it.quand);
     return `<button data-maison="${echappe(it.m.id)}"><span><strong>${echappe(it.quoi)}</strong> · ${echappe(it.m.nom)}</span><span class="quand ${j < 0 ? "relance-due" : ""}">${libelle}</span></button>`;
@@ -395,7 +515,7 @@ function dessineAFaire() {
 }
 
 function dessineFiltres() {
-  const compte = id => id === "toutes" ? donnees.maisons.length : donnees.maisons.filter(m => m.statut === id).length;
+  const compte = id => id === "toutes" ? D().maisons.length : D().maisons.filter(m => m.statut === id).length;
   const options = [{ id: "toutes", nom: "Toutes" }, ...STATUTS];
   document.getElementById("filtres").innerHTML = options
     .filter(o => o.id === "toutes" || compte(o.id) > 0 || o.id === filtre)
@@ -406,7 +526,7 @@ function dessineFiltres() {
 function dessineListe() {
   // Les plus avancées d'abord, les refus à la fin.
   const rang = { signee: 0, rencontre: 1, interessee: 2, contactee: 3, "a-contacter": 4, refus: 5 };
-  const maisons = donnees.maisons
+  const maisons = D().maisons
     .filter(m => filtre === "toutes" || m.statut === filtre)
     .sort((a, b) => rang[a.statut] - rang[b.statut] || a.nom.localeCompare(b.nom, "fr"));
   const el = document.getElementById("liste");
@@ -416,7 +536,7 @@ function dessineListe() {
     const dernier = m.journal.length ? m.journal[m.journal.length - 1] : null;
     const j = m.prochaineRelance ? joursJusqua(m.prochaineRelance) : null;
     const relance = m.prochaineRelance && !["signee", "refus"].includes(m.statut)
-      ? `<span class="${j < 0 ? "relance-due" : ""}">Relance : ${dateCourte(m.prochaineRelance)}${j < 0 ? " (en retard)" : ""}</span>` : "";
+      ? `<span class="${j < 0 ? "relance-due" : ""}">${m.statut === "rencontre" ? "Rencontre" : "Relance"} : ${dateCourte(m.prochaineRelance)}${j < 0 ? " (en retard)" : ""}</span>` : "";
     return `<button class="maison" data-maison="${echappe(m.id)}">
       <div class="tete"><h3>${echappe(m.nom)}</h3><span class="pastille s-${m.statut}">${nomDuStatut(m.statut)}</span></div>
       <div class="meta">
@@ -429,22 +549,237 @@ function dessineListe() {
   }).join("");
 }
 
+// ---------- L'offre, comparée ----------
+
+function dessineOffre() {
+  const t = D().tarifs, pt = t.plusTard || {};
+  const p1 = prixPour(1);
+  const lignes = [1, 2, 3, 4, 5, 6].map(n => {
+    const p = prixPour(n);
+    return `<tr class="${n === adressesCalculees ? "choisie" : ""}"><td>${n} adresse${n > 1 ? "s" : ""}</td><td>${dollars(p.fondateur)}</td><td>${dollars(p.standard)}</td><td>${dollars(p.standard * 10)}</td><td>${p.miseEnPlaceFondateur ? dollars(p.miseEnPlaceFondateur) : "offerte"}</td><td>${dollars(p.miseEnPlacePetite)} · ${dollars(p.miseEnPlaceGrande)}</td></tr>`;
+  }).join("");
+  const maisons = [...D().maisons].sort((a, b) => b.adresses.length - a.adresses.length || a.nom.localeCompare(b.nom, "fr"));
+  const totalF = maisons.reduce((s, m) => s + tarifs(m).fondateur, 0);
+  const totalS = maisons.reduce((s, m) => s + tarifs(m).standard, 0);
+  const totalA = maisons.reduce((s, m) => s + m.adresses.length, 0);
+  const oui = `<td class="oui">Oui</td>`, non = `<td class="non">Non</td>`;
+
+  document.getElementById("vue-offre").innerHTML = `
+    <section aria-labelledby="t-formules">
+      <header><span class="etiquette">Côté fromagerie</span><h2 id="t-formules">Deux formules</h2>
+      <p class="note">Toute fromagerie ajoutée a la présence. Le reste s'ouvre avec le partenariat. Une entrée et un prix par adresse.</p></header>
+      <div class="deux">
+        <div class="boite presence">
+          <span class="etiquette">Par défaut</span><h3>Présence</h3>
+          <span class="prix-grand">0 $<span class="doux" style="font-size:.9rem"> toujours</span></span>
+          <ul><li>Épingle sur la carte</li><li>Page : adresse, horaires</li><li>Itinéraire, Appeler, Site</li><li>Bouton « Devenir partenaire »</li></ul>
+        </div>
+        <div class="boite partenaire">
+          <span class="etiquette">Payant</span><h3>Partenaire</h3>
+          <span class="prix-grand">dès ${dollars(p1.fondateur)}<span class="doux" style="font-size:.9rem"> par mois, fondateur</span></span>
+          <ul><li>Tout de la présence, plus :</li><li>Vitrine reliée aux fiches</li><li>« Où l'acheter » sur chaque fromage vendu</li><li>Tuile à l'accueil de l'app</li><li>Plateau composé avec son stock</li><li>Arrivages (14 jours) et événements</li><li>Rapport mensuel de sa page</li></ul>
+        </div>
+      </div>
+      <div class="tableau comparaison"><table>
+        <thead><tr><th>Où, dans l'app</th><th>Présence</th><th>Partenaire</th></tr></thead>
+        <tbody>
+          <tr><td>Épingle sur la carte</td>${oui}${oui}</tr>
+          <tr><td>Page avec adresse, horaires, Itinéraire, Appeler, Site</td>${oui}${oui}</tr>
+          <tr><td>Tuile « Boutiques partenaires » sur l'accueil</td>${non}${oui}</tr>
+          <tr><td>« Où l'acheter » sur la fiche de chaque fromage vendu</td>${non}${oui}</tr>
+          <tr><td>Vitrine : ses fromages reliés aux fiches</td>${non}${oui}</tr>
+          <tr><td>Plateau composé avec ce qu'elle a en vitrine</td>${non}${oui}</tr>
+          <tr><td>Mode partenaire : elle trie sa vitrine elle-même</td>${non}${oui}</tr>
+          <tr><td>Arrivages, et bulle aux amateurs qui attendaient ce fromage</td>${non}${oui}</tr>
+          <tr><td>Événements : dégustations, ateliers</td>${non}${oui}</tr>
+          <tr><td>Statistiques de sa page</td><td class="non">Mesurées, montrées pour proposer le partenariat</td><td class="oui">Rapport chaque mois</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="t-tarifs">
+      <header><span class="etiquette">Partenaire</span><h2 id="t-tarifs">Trois tarifs</h2></header>
+      <div class="trois">
+        <div class="boite partenaire">
+          <span class="etiquette">Les ${D().placesFondateur} premières · reste ${placesRestantes()}</span><h3>Fondateur</h3>
+          <span class="prix-grand">${dollars(t.fondateur.premiere)} + ${dollars(t.fondateur.suivante)}</span>
+          <ul><li>${t.fondateur.moisOfferts} mois offerts</li><li>${dollars(t.fondateur.premiere)} la 1re adresse, ${dollars(t.fondateur.suivante)} chaque suivante, par mois</li><li>Prix bloqué ${t.fondateur.anneesBloquees} ans</li><li>Mise en place offerte sur la 1re adresse, ${dollars(t.fondateur.miseEnPlaceSuivante)} par suivante</li><li>En échange : leurs retours et une affiche en boutique</li></ul>
+        </div>
+        <div class="boite partenaire">
+          <span class="etiquette">Ensuite</span><h3>Standard</h3>
+          <span class="prix-grand">${dollars(t.standard.premiere)} + ${dollars(t.standard.suivante)}</span>
+          <ul><li>${dollars(t.standard.premiere)} la 1re adresse, ${dollars(t.standard.suivante)} chaque suivante, par mois</li><li>Ou 10 mois payés pour l'année</li><li>Mise en place : ${dollars(t.standard.miseEnPlacePetite)} sous 300 articles de caisse, ${dollars(t.standard.miseEnPlaceGrande)} au-delà</li><li>Puis ${dollars(t.standard.miseEnPlaceSuivante)} par adresse suivante</li></ul>
+        </div>
+        <div class="boite plus-tard">
+          <span class="etiquette">Après ${pt.apresMois || 6} mois de statistiques</span><h3>Plus tard</h3>
+          <span class="prix-grand">${pt.standardMin || "?"}–${pt.standardMax || "?"} $</span>
+          <ul><li>Standard remonté pour les nouvelles boutiques, chiffres en main</li><li>Un niveau à environ ${pt.niveau || "?"} $ : mise en avant près de l'amateur, événements annoncés aux amateurs du coin</li></ul>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="t-calcul">
+      <header><span class="etiquette">Combien on facture</span><h2 id="t-calcul">Selon le nombre d'adresses</h2>
+      <p class="note">Prix par mois = 1re adresse + (adresses − 1) × adresse suivante. Dollars canadiens, avant taxes (TPS et TVQ en sus).</p></header>
+      <div class="calculateur"><label for="nb-adresses">Surligner</label>
+        <select id="nb-adresses">${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === adressesCalculees ? "selected" : ""}>${n} adresse${n > 1 ? "s" : ""}</option>`).join("")}</select></div>
+      <div class="tableau"><table>
+        <thead><tr><th>Adresses</th><th>Fondateur<br>par mois</th><th>Standard<br>par mois</th><th>Standard<br>à l'année</th><th>Mise en place<br>fondateur</th><th>Mise en place standard<br>petite · grande liste</th></tr></thead>
+        <tbody>${lignes}</tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="t-maisons-prix">
+      <header><span class="etiquette">Les maisons du suivi</span><h2 id="t-maisons-prix">Ce que chacune paierait</h2></header>
+      <div class="tableau"><table>
+        <thead><tr><th>Fromagerie</th><th>Adresses</th><th>Fondateur</th><th>Standard</th></tr></thead>
+        <tbody>${maisons.map(m => `<tr><td>${echappe(m.nom)} <span class="pastille s-${m.statut}">${nomDuStatut(m.statut)}</span></td><td>${m.adresses.length}</td><td>${dollars(tarifs(m).fondateur)}</td><td>${dollars(tarifs(m).standard)}</td></tr>`).join("")}
+          <tr class="total"><td>Si toutes signent</td><td>${totalA}</td><td>${dollars(totalF)}</td><td>${dollars(totalS)}</td></tr></tbody>
+      </table></div>
+    </section>
+
+    <section aria-labelledby="t-questions">
+      <header><span class="etiquette">Pour la rencontre</span><h2 id="t-questions">Ce qu'on va te demander</h2></header>
+      <div class="questions">
+        <details><summary>« Pourquoi payer, si la présence est gratuite ? »</summary><p>La présence dit où est la boutique. Le partenariat dit ce qu'elle vend : l'amateur qui lit la fiche d'un fromage voit « Où l'acheter » et arrive à son comptoir. Il voit aussi ses arrivages et ses événements.</p></details>
+        <details><summary>« Combien de monde utilise l'app ? »</summary><p><mark>[CHIFFRE À JOUR]</mark>. C'est justement le sens du tarif fondateur : ${t.fondateur.moisOfferts} mois offerts et un prix bloqué ${t.fondateur.anneesBloquees} ans pendant que l'audience grandit. Le rapport mensuel montre ce que la page rapporte vraiment.</p></details>
+        <details><summary>« Ça me demande quoi comme travail ? »</summary><p>La mise en place, c'est moi, à partir de l'export de caisse. Ensuite, quand elle veut : quelques secondes pour annoncer un arrivage (« Arrivé »), une minute pour un événement, et le tri rapide de la vitrine de temps en temps.</p></details>
+        <details><summary>« Que faites-vous de mes données de caisse ? »</summary><p>Seulement les codes PLU et les libellés (et, si elle veut les fréquences, la date de dernière vente et le nombre de semaines vendues). Aucun montant, aucune quantité. L'app dit « vendu chez », jamais « en stock ».</p></details>
+        <details><summary>« Les statistiques, c'est quoi ? »</summary><p>Chaque mois : ouvertures de sa page, demandes d'itinéraire, appels, visites de son site, plateaux composés avec sa vitrine, mises en favori. Anonymes : l'app ne connaît ni le nom ni la position de ses utilisateurs.</p></details>
+        <details><summary>« Mes concurrents seront là aussi ? »</summary><p>Oui, la présence ne promet aucune exclusivité, à personne. Toutes les fromageries peuvent être sur la carte. Le partenaire se distingue par sa vitrine, sa tuile et « Où l'acheter ».</p></details>
+        <details><summary>« Et si je veux arrêter ? »</summary><p><mark>[À DÉCIDER : par exemple chaque mois, sur simple courriel, sans frais]</mark>. Son logo et sa liste sont retirés sur simple demande, à la mise à jour suivante.</p></details>
+      </div>
+    </section>
+    <p class="note">Pour imprimer cette page : Fichier, puis Imprimer. Prix validés le 18 octobre 2026, à revoir après 6 mois de statistiques.</p>`;
+}
+
+// ---------- Les courriels ----------
+
+// Les valeurs que les modèles citent entre accolades.
+function variables(m) {
+  const t = D().tarifs.fondateur;
+  const n = m ? Math.max(1, m.adresses.length) : 1;
+  const p = prixPour(n);
+  const places = placesRestantes();
+  const signe = m && m.signeLe;
+  return {
+    salutation: m && m.contact.nom ? `Bonjour ${m.contact.nom},` : "Bonjour,",
+    maison: m ? m.nom : "[FROMAGERIE]",
+    contact: m && m.contact.nom ? m.contact.nom : "[CONTACT]",
+    nbAdresses: String(n),
+    nbAdressesTexte: n === 1 ? "votre adresse" : `vos ${n} adresses`,
+    adressesPhrase: n === 1 ? "son épingle est" : `ses ${n} adresses sont`,
+    adressesListe: m && m.adresses.length
+      ? m.adresses.map(a => `${a.libelle} (${a.adresse})`).join(n > 2 ? " ; " : " et ")
+      : "[ADRESSES]",
+    prixFondateur: dollars(p.fondateur),
+    prixStandard: dollars(p.standard),
+    prixRetenu: dollars(m && !m.fondateur ? p.standard : p.fondateur),
+    miseEnPlaceFondateur: n === 1 ? "offerte" : `${dollars(p.miseEnPlaceFondateur)} (offerte sur la première adresse, ${dollars(t.miseEnPlaceSuivante)} par adresse suivante)`,
+    moisOfferts: String(t.moisOfferts),
+    placesRestantes: `${places} place${places > 1 ? "s" : ""}`,
+    signeLe: signe ? dateLisible(m.signeLe) : "[DATE DE SIGNATURE]",
+    premiereFacture: signe ? dateLisible(plusMois(m.signeLe, t.moisOfferts)) : "[DATE DE PREMIÈRE FACTURE]",
+    finPrixBloque: signe ? dateLisible(plusMois(m.signeLe, 12 * t.anneesBloquees)) : "[DATE DE FIN DU PRIX FONDATEUR]",
+    aujourdhui: dateLisible(aujourdHui()),
+  };
+}
+function remplis(texte, v) { return texte.replace(/\{(\w+)\}/g, (tout, nom) => nom in v ? v[nom] : tout); }
+function surligne(texte) { return echappe(texte).replace(/\[[^\]\n]+\]|\{\w+\}/g, x => `<mark>${x}</mark>`); }
+
+function dessineCourriels() {
+  const modeles = fichiers.modeles.donnees ? fichiers.modeles.donnees.modeles : [];
+  const select = document.getElementById("maison-courriel");
+  const maisons = [...D().maisons].sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  select.innerHTML = `<option value="">Aucune fromagerie (modèle vierge)</option>` +
+    maisons.map(m => `<option value="${echappe(m.id)}" ${m.id === maisonDuCourriel ? "selected" : ""}>${echappe(m.nom)}</option>`).join("");
+  if (!modeles.length) {
+    document.getElementById("modeles").innerHTML = `<p class="vide">Aucun modèle (modeles.json introuvable).</p>`;
+    document.getElementById("apercu").innerHTML = "";
+    return;
+  }
+  if (!modeles.some(x => x.id === modeleChoisi)) modeleChoisi = modeles[0].id;
+  document.getElementById("modeles").innerHTML = modeles.map(x =>
+    `<button role="listitem" data-modele="${echappe(x.id)}" aria-pressed="${x.id === modeleChoisi}"><strong>${echappe(x.titre)}</strong><span class="quand">${echappe(x.quand)}</span></button>`
+  ).join("");
+
+  const modele = modeles.find(x => x.id === modeleChoisi);
+  const m = D().maisons.find(x => x.id === maisonDuCourriel) || null;
+  const v = variables(m);
+  const objet = remplis(modele.objet, v), corps = remplis(modele.corps, v);
+  const a = m && m.contact.courriel ? m.contact.courriel : "";
+  const gmail = `https://mail.google.com/mail/?authuser=${encodeURIComponent(ADRESSE_FROMAGLOBE)}&view=cm&fs=1&to=${encodeURIComponent(a)}&su=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+  const mail = `mailto:${encodeURIComponent(a)}?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(corps)}`;
+  const aRemplir = (objet + corps).match(/\[[^\]\n]+\]/g) || [];
+  document.getElementById("apercu").innerHTML = `
+    <div class="doux" style="font-size:.85rem">À : ${a ? echappe(a) : "<mark>[COURRIEL DU CONTACT : à remplir dans la fiche]</mark>"}</div>
+    <div class="objet">${surligne(objet)}</div>
+    <div class="corps">${surligne(corps)}</div>
+    ${aRemplir.length ? `<p class="note">À remplir : ${aRemplir.map(x => `<mark>${echappe(x)}</mark>`).join(" ")}</p>` : ""}
+    <div class="rangee-boutons">
+      <a class="bouton plein" href="${echappe(gmail)}" target="_blank" rel="noopener">Ouvrir dans Gmail (FromaGlobe)</a>
+      <a class="bouton" href="${echappe(mail)}">Ouvrir dans Mail</a>
+      <button class="bouton" id="copier">Copier le texte</button>
+      <button class="bouton discret" id="modifier-modele">Modifier le modèle</button>
+    </div>`;
+  document.getElementById("copier").onclick = async () => {
+    try { await navigator.clipboard.writeText(`${objet}\n\n${corps}`); etat("Texte copié."); }
+    catch { etat("La copie a été refusée par le navigateur : sélectionne le texte à la main.", true); }
+  };
+  document.getElementById("modifier-modele").onclick = () => ouvreModele(modele.id);
+}
+
+function ouvreModele(id) {
+  const modele = structuredClone(fichiers.modeles.donnees.modeles.find(x => x.id === id));
+  const dialogue = document.getElementById("dialogue");
+  const noms = Object.keys(variables(null)).map(n => `{${n}}`).join(" ");
+  dialogue.innerHTML = `
+    <form class="fiche" onsubmit="return false">
+      <header><h2 id="fiche-titre">Modifier « ${echappe(modele.titre)} »</h2><button class="bouton discret" type="button" id="fermer">Fermer</button></header>
+      <div class="corps">
+        <label class="champ">Titre<input name="titre" value="${echappe(modele.titre)}"></label>
+        <label class="champ">Quand l'envoyer<input name="quand" value="${echappe(modele.quand)}"></label>
+        <label class="champ">Objet<input name="objet" value="${echappe(modele.objet)}"></label>
+        <label class="champ">Texte<textarea name="corps" class="long">${echappe(modele.corps)}</textarea></label>
+        <p class="note">Valeurs remplies toutes seules : ${echappe(noms)}. Entre crochets [COMME ÇA] : à remplir à la main avant l'envoi.</p>
+      </div>
+      <footer><span class="doux" id="fiche-etat"></span><button class="bouton plein" type="button" id="enregistrer">Enregistrer</button></footer>
+    </form>`;
+  dialogue.onkeydown = null;
+  dialogue.onclick = async ev => {
+    const b = ev.target.closest("button");
+    if (!b) { if (ev.target === dialogue) dialogue.close(); return; }
+    if (b.id === "fermer") dialogue.close();
+    if (b.id === "enregistrer") {
+      const f = dialogue.querySelector("form");
+      for (const k of ["titre", "quand", "objet", "corps"]) modele[k] = f.elements[k].value;
+      b.disabled = true;
+      const ok = await modifie("modeles", d => {
+        const i = d.modeles.findIndex(x => x.id === modele.id);
+        if (i >= 0) d.modeles[i] = modele; else d.modeles.push(modele);
+      }, `Modèle de courriel : ${modele.titre}`);
+      if (ok) dialogue.close(); else b.disabled = false;
+    }
+  };
+  dialogue.showModal();
+}
+
 // ---------- La fiche d'une maison ----------
 
 function ouvreFiche(id, neuve = false) {
-  const original = donnees.maisons.find(m => m.id === id);
+  const original = neuve ? null : D().maisons.find(m => m.id === id);
   const m = neuve ? id : structuredClone(original);
   const dialogue = document.getElementById("dialogue");
 
   const rendu = () => {
     const t = tarifs(m);
-    const offerts = donnees.tarifs.fondateur.moisOfferts, bloque = donnees.tarifs.fondateur.anneesBloquees;
+    const offerts = D().tarifs.fondateur.moisOfferts, bloque = D().tarifs.fondateur.anneesBloquees;
     const calcule = m.signeLe ? (m.fondateur
       ? `<span>Première facture : <strong>${dateLisible(plusMois(m.signeLe, offerts))}</strong> (${offerts} mois offerts)</span><span>Prix fondateur bloqué jusqu'au <strong>${dateLisible(plusMois(m.signeLe, 12 * bloque))}</strong></span>`
       : `<span>Première facture : <strong>${dateLisible(m.signeLe)}</strong></span>`) : "";
     const miseEnPlace = m.fondateur
-      ? (m.adresses.length - 1) * donnees.tarifs.fondateur.miseEnPlaceSuivante
-      : null;
+      ? `<span>Mise en place : ${t.miseEnPlaceFondateur ? dollars(t.miseEnPlaceFondateur) : "offerte"}</span>`
+      : `<span>Mise en place : ${dollars(t.miseEnPlacePetite)} (moins de 300 articles) ou ${dollars(t.miseEnPlaceGrande)}</span>`;
     dialogue.innerHTML = `
       <form class="fiche" onsubmit="return false">
         <header>
@@ -461,13 +796,13 @@ function ouvreFiche(id, neuve = false) {
           <div class="bloc">
             <span class="etiquette">Prochaine étape</span>
             <div class="champs">
-              <label class="champ">Prochaine relance<input type="date" name="prochaineRelance" value="${m.prochaineRelance || ""}"></label>
+              <label class="champ">${m.statut === "rencontre" ? "Date de la rencontre" : "Prochaine relance"}<input type="date" name="prochaineRelance" value="${m.prochaineRelance || ""}"></label>
               <label class="champ">Signée le<input type="date" name="signeLe" value="${m.signeLe || ""}"></label>
             </div>
-            <label class="case"><input type="checkbox" name="fondateur" ${m.fondateur ? "checked" : ""}> Tarif fondateur (les ${donnees.placesFondateur} premières)</label>
+            <label class="case"><input type="checkbox" name="fondateur" ${m.fondateur ? "checked" : ""}> Tarif fondateur (les ${D().placesFondateur} premières)</label>
             <div class="calcule">
               <span><strong class="chiffre">${dollars(m.fondateur ? t.fondateur : t.standard)}</strong> par mois pour ${m.adresses.length} adresse${m.adresses.length > 1 ? "s" : ""} (${m.fondateur ? `standard : ${dollars(t.standard)}` : `fondateur : ${dollars(t.fondateur)}`})</span>
-              ${miseEnPlace !== null ? `<span>Mise en place : ${miseEnPlace ? dollars(miseEnPlace) : "offerte"}</span>` : `<span>Mise en place : ${dollars(donnees.tarifs.standard.miseEnPlacePetite + (m.adresses.length - 1) * 100)} (moins de 300 articles) ou ${dollars(donnees.tarifs.standard.miseEnPlaceGrande + (m.adresses.length - 1) * 100)}</span>`}
+              ${miseEnPlace}
               ${calcule}
             </div>
           </div>
@@ -498,7 +833,7 @@ function ouvreFiche(id, neuve = false) {
             <span class="etiquette">Adresses</span>
             <div class="adresses">${m.adresses.map(a => `<div class="adresse">
               <strong>${echappe(a.libelle)}</strong><span>${echappe(a.adresse)}</span>
-              <span class="liens">${a.telephone ? `<a href="tel:${echappe(a.telephone.replace(/[^0-9+]/g, ""))}">${echappe(a.telephone)}</a>` : ""}${a.site ? `<a href="${echappe(/^https?:/.test(a.site) ? a.site : "https://" + a.site)}" target="_blank" rel="noopener">Site</a>` : ""}<span class="doux">${a.formule === "partenaire" ? "Partenaire dans l'app" : "Présence dans l'app"}</span></span>
+              <span class="liens">${a.telephone ? `<a href="tel:${echappe(a.telephone.replace(/[^0-9+]/g, ""))}">${echappe(a.telephone)}</a>` : ""}${a.site ? `<a href="${echappe(/^https?:/.test(a.site) ? a.site : "https://" + a.site)}" target="_blank" rel="noopener">Site</a>` : ""}<span class="doux">${a.formule === "partenaire" ? "Partenaire dans l'app" : a.formule === "presence" ? "Présence dans l'app" : "Pas encore dans l'app"}</span></span>
             </div>`).join("")}</div>
             <details>
               <summary class="lien" style="cursor:pointer">Ajouter une adresse</summary>
@@ -513,7 +848,7 @@ function ouvreFiche(id, neuve = false) {
           </div>
         </div>
         <footer>
-          <span class="doux" id="fiche-etat"></span>
+          ${neuve ? `<span class="doux" id="fiche-etat"></span>` : `<button type="button" class="bouton discret" id="ecrire">Écrire un courriel</button><span class="doux" id="fiche-etat"></span>`}
           <button class="bouton plein" type="button" id="enregistrer">Enregistrer</button>
         </footer>
       </form>`;
@@ -530,6 +865,7 @@ function ouvreFiche(id, neuve = false) {
     for (const k of ["nom", "role", "courriel", "telephone"]) m.contact[k] = v(`contact.${k}`);
     m.notes = f.elements.notes.value;
   };
+  const modifiee = () => { recueille(); return JSON.stringify(m) !== JSON.stringify(original); };
 
   rendu();
   // Entrée dans la note du journal l'ajoute, comme le bouton.
@@ -541,6 +877,11 @@ function ouvreFiche(id, neuve = false) {
     if (!b) { if (ev.target === dialogue) dialogue.close(); return; }
     if (b.id === "fermer") {
       dialogue.close();
+    } else if (b.id === "ecrire") {
+      if (modifiee()) { dialogue.querySelector("#fiche-etat").textContent = "Enregistre d'abord tes changements."; return; }
+      dialogue.close();
+      maisonDuCourriel = m.id;
+      location.hash = "courriels";
     } else if (b.dataset.statut) {
       recueille();
       m.statut = b.dataset.statut;
@@ -560,20 +901,19 @@ function ouvreFiche(id, neuve = false) {
       const adresse = f.elements["adresse.adresse"].value.trim();
       if (!libelle && !adresse) return;
       recueille();
-      m.adresses.push({ id: `${m.id}-${m.adresses.length + 1}`, libelle: libelle || adresse, adresse, telephone: f.elements["adresse.telephone"].value.trim() || null, site: f.elements["adresse.site"].value.trim() || null, formule: "aucune" });
+      m.adresses.push({ id: `${m.id || identifiant(m.nom)}-${m.adresses.length + 1}`, libelle: libelle || adresse, adresse, telephone: f.elements["adresse.telephone"].value.trim() || null, site: f.elements["adresse.site"].value.trim() || null, formule: "aucune" });
       rendu();
     } else if (b.id === "enregistrer") {
       recueille();
       if (neuve) {
         if (!m.nom) { dialogue.querySelector("#fiche-etat").textContent = "Il faut un nom."; return; }
         m.id = identifiant(m.nom);
-        while (donnees.maisons.some(x => x.id === m.id)) m.id += "-2";
+        while (D().maisons.some(x => x.id === m.id)) m.id += "-2";
       }
       b.disabled = true;
       dialogue.querySelector("#fiche-etat").textContent = "Enregistrement…";
-      const avant = neuve ? null : original;
-      const resume = neuve ? "ajoutée" : (avant.statut !== m.statut ? `statut ${nomDuStatut(m.statut)}` : "mise à jour");
-      const ok = await modifie(d => {
+      const resume = neuve ? "ajoutée" : (original.statut !== m.statut ? `statut ${nomDuStatut(m.statut)}` : "mise à jour");
+      const ok = await modifie("demarches", d => {
         const i = d.maisons.findIndex(x => x.id === m.id);
         if (i >= 0) d.maisons[i] = m; else d.maisons.push(m);
       }, `Suivi : ${m.nom}, ${resume}`);
@@ -597,12 +937,16 @@ function nouvelleMaison() {
 async function charge() {
   etat("Lecture du suivi…");
   try {
-    const r = await lisLeFichier();
-    donnees = r.donnees; sha = r.sha;
+    const [demarches, modeles] = await Promise.all([
+      lisLeFichier(FICHIERS.demarches),
+      lisLeFichier(FICHIERS.modeles).catch(e => { if (e.message === "introuvable") return { donnees: { version: 1, modeles: [] }, sha: undefined }; throw e; }),
+    ]);
+    fichiers.demarches = demarches;
+    fichiers.modeles = modeles;
     document.getElementById("porte").hidden = true;
     document.getElementById("app").hidden = false;
-    etat(`À jour · modifié le ${dateLisible(donnees.modifieLe.slice(0, 10))}.`);
-    dessine();
+    etat(`À jour · modifié le ${dateLisible(D().modifieLe.slice(0, 10))}.`);
+    montreVue(location.hash.slice(1));
     return true;
   } catch (e) {
     return e;
@@ -617,7 +961,7 @@ function montreLaPorte(message = "") {
 }
 
 document.getElementById("nom-depot").textContent = `${DEPOT.proprietaire}/${DEPOT.nom}`;
-document.getElementById("lien-depot").href = `https://github.com/${DEPOT.proprietaire}/${DEPOT.nom}/blob/${DEPOT.branche}/${DEPOT.chemin}`;
+document.getElementById("lien-depot").href = `https://github.com/${DEPOT.proprietaire}/${DEPOT.nom}`;
 
 document.getElementById("entrer").onclick = async () => {
   const v = document.getElementById("champ-cle").value.trim();
@@ -628,15 +972,20 @@ document.getElementById("entrer").onclick = async () => {
   else montreLaPorte(r.message === "cle" ? "Clé refusée par GitHub." : r.message === "introuvable" ? "Cette clé n'a pas accès au dépôt suivi-boutiques-donnees." : `Impossible de joindre GitHub (${r.message}).`);
 };
 document.getElementById("champ-cle").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("entrer").click(); });
+window.addEventListener("hashchange", () => { if (D()) montreVue(location.hash.slice(1)); });
 document.getElementById("filtres").onclick = e => { const b = e.target.closest("[data-filtre]"); if (b) { filtre = b.dataset.filtre; dessineFiltres(); dessineListe(); } };
 document.getElementById("liste").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
 document.getElementById("a-faire").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
+document.getElementById("vue-offre").addEventListener("change", e => { if (e.target.id === "nb-adresses") { adressesCalculees = Number(e.target.value); dessineOffre(); } });
+document.getElementById("modeles").onclick = e => { const b = e.target.closest("[data-modele]"); if (b) { modeleChoisi = b.dataset.modele; dessineCourriels(); } };
+document.getElementById("maison-courriel").onchange = e => { maisonDuCourriel = e.target.value; dessineCourriels(); };
 document.getElementById("ajouter").onclick = nouvelleMaison;
 document.getElementById("recharger").onclick = async () => { const r = await charge(); if (r !== true) afficheErreur(r); };
-document.getElementById("oublier").onclick = () => { oublieCle(); cle = null; donnees = null; montreLaPorte("Clé oubliée sur cet appareil."); };
+document.getElementById("oublier").onclick = () => { oublieCle(); cle = null; fichiers.demarches = { donnees: null, sha: null }; montreLaPorte("Clé oubliée sur cet appareil."); };
 document.getElementById("exporter").onclick = () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(donnees, null, 1)], { type: "application/json" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: `demarches-${aujourdHui()}.json` });
+  const tout = { demarches: D(), modeles: fichiers.modeles.donnees };
+  const url = URL.createObjectURL(new Blob([JSON.stringify(tout, null, 1)], { type: "application/json" }));
+  const a = Object.assign(document.createElement("a"), { href: url, download: `suivi-boutiques-${aujourdHui()}.json` });
   a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
