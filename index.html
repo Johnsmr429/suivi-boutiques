@@ -20,8 +20,8 @@
   --gris: #4f6470; --gris-lavis: #edf1f3; --rouge: #a63d2f; --rouge-lavis: #f8e9e6;
   --bleu: #2f5e8c; --bleu-lavis: #e7eef6; --violet: #6247b3; --violet-lavis: #efebf9;
   --marque: #fbe7a6;
-  /* Les trois séries du graphique, validées (clair) : fondateur, standard, mise en place. */
-  --serie-1: #1f8a55; --serie-2: #2f6fc0; --serie-3: #b8741a;
+  /* Les quatre séries du graphique, validées dans l'ordre d'empilement : fondateur, standard, niveau ~99 $, mise en place. */
+  --serie-1: #1f8a55; --serie-2: #2f6fc0; --serie-3: #b8741a; --serie-4: #c0447a;
   --affiche: "Source Serif 4", Georgia, serif;
   --texte: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
   --chiffres: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -34,7 +34,7 @@
     --gris: #9db3c0; --gris-lavis: #1d2529; --rouge: #e5867a; --rouge-lavis: #2e1c19;
     --bleu: #8fb6e0; --bleu-lavis: #18222d; --violet: #a993f0; --violet-lavis: #231d36;
     --marque: #5a4a14;
-    --serie-1: #279e6c; --serie-2: #6a88ea; --serie-3: #bb781c;
+    --serie-1: #279e6c; --serie-2: #6a88ea; --serie-3: #bb781c; --serie-4: #c060a0;
     color-scheme: dark;
   }
 }
@@ -254,6 +254,10 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 .legende { display: flex; gap: 16px; flex-wrap: wrap; font-size: .85rem; color: var(--encre-douce); margin-bottom: 8px; }
 .legende span { display: inline-flex; align-items: center; gap: 6px; }
 .legende i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+.frise { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+@media (max-width: 720px) { .frise { grid-template-columns: 1fr 1fr; } }
+.frise > div { background: var(--carte); border: 1px solid var(--filet); border-top: 3px solid var(--or); border-radius: 10px; padding: 10px 12px; display: grid; gap: 4px; font-size: .88rem; }
+.frise .chiffre { font-weight: 600; }
 .bulle {
   position: absolute; pointer-events: none; background: var(--encre); color: var(--papier); border-radius: 8px; padding: 8px 10px;
   font-size: .8rem; line-height: 1.45; min-width: 170px; transform: translate(-50%, -100%); white-space: nowrap; z-index: 2;
@@ -742,172 +746,252 @@ function dessineOffre() {
 
 // ---------- La simulation des revenus ----------
 
-// Les réglages de la simulation, gardés le temps de la visite.
-const sim = { cas: "meilleur", autres: 10, adresses: 1, liste: "petite" };
-const MOIS = 12;
+// Quatre ans, mois par mois : assez pour voir les mois offerts, le standard qui
+// remonte pour les nouvelles, la fin du prix fondateur, et le régime de croisière.
+const MOIS = 48;
+const sim = {
+  cas: "meilleur",     // signatures de l'année 1 : toutes au mois 1, ou étalées
+  autres: 10,          // fromageries au standard signées l'année 1, en plus des fondatrices
+  ensuite: 10,         // nouvelles fromageries par an, années 2 à 4
+  adresses: 1,         // adresses par fromagerie ajoutée
+  liste: "petite",     // taille de la liste de caisse (prix de la mise en place)
+  remonte: null,       // le standard des fromageries signées après le 6e mois (null = le bas de la fourchette)
+  apresFondateur: "remonte", // ce que paient les fondatrices au bout de 2 ans
+  niveau: 0,           // part des partenaires au niveau ~99 $ dès l'année 2, en %
+  departs: 0,          // fromageries qui arrêtent, en % par an
+};
+
+function parametres() {
+  const t = D().tarifs, pt = t.plusTard || {};
+  const remonte = sim.remonte ?? (pt.standardMin || t.standard.premiere);
+  return {
+    t, remonte,
+    moisRemonte: (pt.apresMois || 6) + 1,
+    niveau: pt.niveau || 99,
+    finFondateur: 12 * t.fondateur.anneesBloquees,
+  };
+}
 
 // Qui signe, et quand. Les fondatrices sont les maisons du suivi (hors refus), les
-// plus grandes d'abord, jusqu'au nombre de places ; les autres maisons du suivi et
-// les fromageries ajoutées par le curseur sont au tarif standard.
+// plus grandes d'abord ; les autres maisons du suivi et les fromageries ajoutées
+// sont au standard.
 function contratsSimules(autres, cas) {
-  const t = D().tarifs;
+  const { t } = parametres();
   const maisons = D().maisons.filter(m => m.statut !== "refus")
     .sort((a, b) => b.adresses.length - a.adresses.length || a.nom.localeCompare(b.nom, "fr"));
   const fondatrices = maisons.slice(0, D().placesFondateur);
-  const standard = [
-    ...maisons.slice(D().placesFondateur).map(m => m.adresses.length),
-    ...Array.from({ length: autres }, () => sim.adresses),
-  ];
-  const contrats = [];
-  fondatrices.forEach((m, i) => {
-    const n = m.adresses.length;
-    contrats.push({
-      type: "fondateur", adresses: n,
-      signe: cas === "meilleur" ? 1 : Math.min(MOIS, 1 + i),
-      prix: t.fondateur.premiere + (n - 1) * t.fondateur.suivante,
-      debut: t.fondateur.moisOfferts,
-      miseEnPlace: (n - 1) * t.fondateur.miseEnPlaceSuivante,
-    });
-  });
-  standard.forEach((n, j) => {
-    contrats.push({
-      type: "standard", adresses: n,
-      signe: cas === "meilleur" ? 1 : 1 + Math.floor(j * MOIS / standard.length),
-      prix: t.standard.premiere + (n - 1) * t.standard.suivante,
-      debut: 0,
-      miseEnPlace: (sim.liste === "grande" ? t.standard.miseEnPlaceGrande : t.standard.miseEnPlacePetite) + (n - 1) * t.standard.miseEnPlaceSuivante,
-    });
-  });
+  const annee1 = [...maisons.slice(D().placesFondateur).map(m => m.adresses.length), ...Array.from({ length: autres }, () => sim.adresses)];
+  const contrats = fondatrices.map((m, i) => ({ type: "fondateur", adresses: m.adresses.length, signe: cas === "meilleur" ? 1 : Math.min(12, 1 + i) }));
+  annee1.forEach((n, j) => contrats.push({ type: "standard", adresses: n, signe: cas === "meilleur" ? 1 : 1 + Math.floor(j * 12 / annee1.length) }));
+  for (let an = 1; an < MOIS / 12; an++) {
+    for (let j = 0; j < sim.ensuite; j++) contrats.push({ type: "standard", adresses: sim.adresses, signe: 12 * an + 1 + Math.floor(j * 12 / sim.ensuite) });
+  }
+  for (const c of contrats) {
+    c.miseEnPlace = c.type === "fondateur"
+      ? (c.adresses - 1) * t.fondateur.miseEnPlaceSuivante
+      : (sim.liste === "grande" ? t.standard.miseEnPlaceGrande : t.standard.miseEnPlacePetite) + (c.adresses - 1) * t.standard.miseEnPlaceSuivante;
+  }
   return contrats;
 }
 
-// Mois par mois : ce que rapportent les fondatrices, les standard, et la mise en place.
+// Ce que rapporte un contrat au mois k, réparti par série. Valeur attendue : les
+// départs et le niveau ~99 $ s'appliquent en proportion, pas au hasard.
+function rapporte(c, k, p) {
+  const r = { fondateur: 0, standard: 0, niveau: 0 };
+  const { t } = p;
+  const age = k - c.signe;
+  if (age < 0) return r;
+  const reste = Math.pow(1 - sim.departs / 100, age / 12);
+  let base;
+  if (c.type === "fondateur") {
+    if (age < t.fondateur.moisOfferts) return r;
+    if (age < p.finFondateur) { r.fondateur = (t.fondateur.premiere + (c.adresses - 1) * t.fondateur.suivante) * reste; return r; }
+    base = sim.apresFondateur === "remonte" ? p.remonte : t.standard.premiere;
+  } else {
+    // Les premières gardent le standard de départ ; les suivantes paient le nouveau.
+    base = c.signe < p.moisRemonte ? t.standard.premiere : p.remonte;
+  }
+  const standard = base + (c.adresses - 1) * t.standard.suivante;
+  const haut = p.niveau + (c.adresses - 1) * t.standard.suivante;
+  const part = k > 12 ? sim.niveau / 100 : 0;
+  r.standard = (1 - part) * standard * reste;
+  r.niveau = part * haut * reste;
+  return r;
+}
+
 function simule(autres, cas) {
+  const p = parametres();
   const contrats = contratsSimules(autres, cas);
-  const mois = Array.from({ length: MOIS }, (_, k) => ({ mois: k + 1, fondateur: 0, standard: 0, miseEnPlace: 0 }));
+  const mois = Array.from({ length: MOIS }, (_, i) => ({ mois: i + 1, fondateur: 0, standard: 0, niveau: 0, miseEnPlace: 0 }));
   for (const c of contrats) {
     mois[c.signe - 1].miseEnPlace += c.miseEnPlace;
-    for (let k = c.signe + c.debut; k <= MOIS; k++) mois[k - 1][c.type] += c.prix;
+    for (let k = c.signe; k <= MOIS; k++) {
+      const r = rapporte(c, k, p);
+      mois[k - 1].fondateur += r.fondateur; mois[k - 1].standard += r.standard; mois[k - 1].niveau += r.niveau;
+    }
   }
-  const total = x => x.fondateur + x.standard + x.miseEnPlace;
-  const annee1 = mois.reduce((s, x) => s + total(x), 0);
-  const regime = contrats.reduce((s, c) => s + c.prix, 0);
+  const total = x => x.fondateur + x.standard + x.niveau + x.miseEnPlace;
+  const annees = [0, 1, 2, 3].map(a => {
+    const tranche = mois.slice(12 * a, 12 * a + 12);
+    const somme = cle => tranche.reduce((s, x) => s + x[cle], 0);
+    const fin = 12 * a + 12;
+    return {
+      an: a + 1, fondateur: somme("fondateur"), standard: somme("standard"), niveau: somme("niveau"), miseEnPlace: somme("miseEnPlace"),
+      total: tranche.reduce((s, x) => s + total(x), 0),
+      actives: contrats.filter(c => c.signe <= fin).reduce((s, c) => s + Math.pow(1 - sim.departs / 100, (fin - c.signe) / 12), 0),
+    };
+  });
   return {
-    mois, total, annee1, regime, annee2: regime * 12,
-    miseEnPlace: mois.reduce((s, x) => s + x.miseEnPlace, 0),
-    fromageries: contrats.length, adresses: contrats.reduce((s, c) => s + c.adresses, 0),
+    mois, total, annees, p,
+    croisiere: total(mois[MOIS - 1]) - mois[MOIS - 1].miseEnPlace,
     fondatrices: contrats.filter(c => c.type === "fondateur").length,
+    signees: contrats.length,
+    adresses: contrats.reduce((s, c) => s + c.adresses, 0),
   };
 }
 
 const arrondi = n => Math.round(n);
+const dec = n => String(Math.round(n * 10) / 10).replace(".", ",");
+const SERIES = [
+  { cle: "fondateur", nom: "Prix fondateur", couleur: "var(--serie-1)" },
+  { cle: "standard", nom: "Standard", couleur: "var(--serie-2)" },
+  { cle: "niveau", nom: "Niveau ~99 $", couleur: "var(--serie-4)" },
+  { cle: "miseEnPlace", nom: "Mise en place", couleur: "var(--serie-3)" },
+];
+
 function dessineSimulation() {
   const r = simule(sim.autres, sim.cas);
-  const series = [
-    { cle: "fondateur", nom: "Fondatrices", couleur: "var(--serie-1)" },
-    { cle: "standard", nom: "Tarif standard", couleur: "var(--serie-2)" },
-    { cle: "miseEnPlace", nom: "Mise en place", couleur: "var(--serie-3)" },
-  ];
+  const { t, remonte, moisRemonte, finFondateur, niveau } = r.p;
+  const pt = t.plusTard || {};
+  const series = SERIES.filter(s => s.cle !== "niveau" || sim.niveau > 0);
   const scenarios = [0, 10, 20, 50, 100].map(a => ({ a, r: simule(a, sim.cas) }));
+  const choixRemonte = [...new Set([t.standard.premiere, pt.standardMin, pt.standardMax].filter(Boolean))];
   const el = document.getElementById("vue-simulation");
   el.innerHTML = `
     <section aria-labelledby="t-sim">
       <header><span class="etiquette">Hypothèses, pas des prévisions</span>
-        <h2 id="t-sim" class="titre-section"><img class="ico-titre" src="img/medaille-champion.png" alt="">Les revenus des fromageries sur un an</h2>
-        <p class="note">Les ${r.fondatrices} fondatrices sont les maisons du suivi, les plus grandes d'abord. Le curseur ajoute d'autres fromageries au tarif standard (Montréal ou ailleurs). Dollars canadiens, ce qui est facturé, avant taxes, frais de paiement et impôts.</p>
+        <h2 id="t-sim" class="titre-section"><img class="ico-titre" src="img/medaille-champion.png" alt="">Ce que les fromageries rapporteraient, sur 4 ans</h2>
+        <p class="note">Les ${r.fondatrices} fondatrices sont les maisons du suivi, les plus grandes d'abord. Dollars canadiens facturés, avant taxes, frais de paiement et impôts. Paiement au mois.</p>
       </header>
       <div class="reglages">
-        <label>Scénario
-          <span class="segment" role="group" aria-label="Scénario">
-            <button type="button" data-cas="meilleur" aria-pressed="${sim.cas === "meilleur"}">Meilleur des cas</button>
-            <button type="button" data-cas="etale" aria-pressed="${sim.cas === "etale"}">Signatures étalées</button>
+        <label>Année 1
+          <span class="segment" role="group" aria-label="Signatures de l'année 1">
+            <button type="button" data-cas="meilleur" aria-pressed="${sim.cas === "meilleur"}">Tout signé au 1er mois</button>
+            <button type="button" data-cas="etale" aria-pressed="${sim.cas === "etale"}">Étalé sur l'année</button>
           </span>
         </label>
-        <label>Autres fromageries au tarif standard : <strong class="chiffre" id="sim-autres-valeur">${sim.autres}</strong>
-          <input type="range" id="sim-autres" min="0" max="100" step="1" value="${sim.autres}">
-        </label>
+        <label><span>Fromageries en plus, année 1 : <strong class="chiffre" data-valeur="autres">${sim.autres}</strong></span>
+          <input type="range" data-sim="autres" min="0" max="100" step="1" value="${sim.autres}"></label>
+        <label><span>Nouvelles par an ensuite : <strong class="chiffre" data-valeur="ensuite">${sim.ensuite}</strong></span>
+          <input type="range" data-sim="ensuite" min="0" max="100" step="1" value="${sim.ensuite}"></label>
         <label>Adresses par fromagerie
-          <select id="sim-adresses">${[1, 1.5, 2, 3].map(n => `<option value="${n}" ${n === sim.adresses ? "selected" : ""}>${String(n).replace(".", ",")} en moyenne</option>`).join("")}</select>
-        </label>
+          <select data-sim="adresses">${[1, 1.5, 2, 3].map(n => `<option value="${n}" ${n === sim.adresses ? "selected" : ""}>${dec(n)} en moyenne</option>`).join("")}</select></label>
         <label>Liste de caisse
-          <select id="sim-liste"><option value="petite" ${sim.liste === "petite" ? "selected" : ""}>moins de 300 articles</option><option value="grande" ${sim.liste === "grande" ? "selected" : ""}>300 et plus</option></select>
-        </label>
+          <select data-sim="liste"><option value="petite" ${sim.liste === "petite" ? "selected" : ""}>moins de 300 articles</option><option value="grande" ${sim.liste === "grande" ? "selected" : ""}>300 et plus</option></select></label>
+        <label>Standard après le ${moisRemonte - 1}e mois
+          <select data-sim="remonte">${choixRemonte.map(v => `<option value="${v}" ${v === remonte ? "selected" : ""}>${dollars(v)}${v === t.standard.premiere ? " (inchangé)" : ""}</option>`).join("")}</select></label>
+        <label>Fondatrices après ${t.fondateur.anneesBloquees} ans
+          <select data-sim="apresFondateur"><option value="remonte" ${sim.apresFondateur === "remonte" ? "selected" : ""}>nouveau standard (${dollars(remonte)})</option><option value="depart" ${sim.apresFondateur === "depart" ? "selected" : ""}>standard de départ (${dollars(t.standard.premiere)})</option></select></label>
+        <label><span>Au niveau ~${niveau} $ dès l'an 2 : <strong class="chiffre" data-valeur="niveau">${sim.niveau}</strong> %</span>
+          <input type="range" data-sim="niveau" min="0" max="50" step="5" value="${sim.niveau}"></label>
+        <label><span>Départs par an : <strong class="chiffre" data-valeur="departs">${sim.departs}</strong> %</span>
+          <input type="range" data-sim="departs" min="0" max="30" step="5" value="${sim.departs}"></label>
       </div>
-      <p class="note">${sim.cas === "meilleur"
-        ? "Meilleur des cas : tout le monde signe le premier mois et paie au mois. Les fondatrices commencent à payer au 4e mois (3 mois offerts)."
-        : "Signatures étalées : une fondatrice par mois, du 1er au 10e mois ; les autres fromageries signent régulièrement sur l'année."}</p>
+    </section>
+
+    <section aria-labelledby="t-temps">
+      <h3 id="t-temps">Ce qui change avec le temps</h3>
+      <div class="frise">
+        <div><span class="chiffre">Mois 1 à ${t.fondateur.moisOfferts}</span><p>Les fondatrices ne paient pas (mois offerts). Les fromageries au standard paient dès la signature.</p></div>
+        <div><span class="chiffre">Mois ${moisRemonte}</span><p>Après ${moisRemonte - 1} mois de statistiques, le standard passe à <strong>${dollars(remonte)}</strong> pour les nouvelles. Celles déjà signées gardent ${dollars(t.standard.premiere)}.</p></div>
+        <div><span class="chiffre">Mois 13</span><p>${sim.niveau ? `${sim.niveau} % des partenaires au standard prennent le niveau à ~${niveau} $.` : `Le niveau à ~${niveau} $ peut s'ouvrir (réglage à 0 % pour l'instant).`}</p></div>
+        <div><span class="chiffre">Mois ${finFondateur + 1}</span><p>Fin du prix fondateur : les fondatrices passent au ${sim.apresFondateur === "remonte" ? `nouveau standard (${dollars(remonte)})` : `standard de départ (${dollars(t.standard.premiere)})`}, ${dollars(t.standard.suivante)} par adresse suivante.</p></div>
+      </div>
     </section>
 
     <div class="heros">
-      <div class="tuile principale"><span class="etiquette">Année 1</span><span class="valeur">${dollars(arrondi(r.annee1))}</span><span class="sous">abonnements et mise en place</span></div>
-      <div class="tuile"><span class="etiquette">Par mois, à la fin</span><span class="valeur">${dollars(arrondi(r.regime))}</span><span class="sous">quand tout le monde paie</span></div>
-      <div class="tuile"><span class="etiquette">Année 2</span><span class="valeur">${dollars(arrondi(r.annee2))}</span><span class="sous">mêmes fromageries, prix fondateur bloqué</span></div>
-      <div class="tuile"><span class="etiquette">Fromageries</span><span class="valeur">${r.fromageries}</span><span class="sous">${String(Math.round(r.adresses * 10) / 10).replace(".", ",")} adresses · mise en place ${dollars(arrondi(r.miseEnPlace))}</span></div>
+      ${r.annees.map(a => `<div class="tuile ${a.an === 3 ? "principale" : ""}"><span class="etiquette">Année ${a.an}</span><span class="valeur">${dollars(arrondi(a.total))}</span><span class="sous">${a.an === 1 ? "avec la mise en place" : a.an === 3 ? "1re année sans prix fondateur" : `${dec(a.actives)} fromageries à la fin`}</span></div>`).join("")}
     </div>
+    <p class="note">En croisière (mois ${MOIS}) : <strong>${dollars(arrondi(r.croisiere))} par mois</strong>, soit ${dollars(arrondi(r.croisiere * 12))} par an, avec ${dec(r.annees[3].actives)} fromageries${sim.departs ? " (après les départs)" : ""}.</p>
 
     <section aria-labelledby="t-graph">
-      <h3 id="t-graph">Mois par mois, la première année</h3>
+      <h3 id="t-graph">Mois par mois, sur 4 ans</h3>
       <div class="graphique" id="graphique">
         <div class="legende">${series.map(x => `<span><i style="background:${x.couleur}"></i>${x.nom}</span>`).join("")}</div>
         ${barres(r, series)}
         <div class="bulle" id="bulle" hidden></div>
       </div>
-      <details><summary class="lien" style="cursor:pointer">Voir les chiffres mois par mois</summary>
+    </section>
+
+    <section aria-labelledby="t-annees">
+      <h3 id="t-annees">Année par année</h3>
+      <div class="tableau"><table>
+        <thead><tr><th>Année</th>${series.map(s => `<th>${s.nom}</th>`).join("")}<th>Total</th><th>Fromageries à la fin</th></tr></thead>
+        <tbody>${r.annees.map(a => `<tr><td>Année ${a.an}</td>${series.map(s => `<td>${dollars(arrondi(a[s.cle]))}</td>`).join("")}<td><strong>${dollars(arrondi(a.total))}</strong></td><td>${dec(a.actives)}</td></tr>`).join("")}
+        <tr class="total"><td>4 ans</td>${series.map(s => `<td>${dollars(arrondi(r.annees.reduce((x, a) => x + a[s.cle], 0)))}</td>`).join("")}<td>${dollars(arrondi(r.annees.reduce((x, a) => x + a.total, 0)))}</td><td></td></tr></tbody>
+      </table></div>
+      <details><summary class="lien" style="cursor:pointer">Voir les 48 mois</summary>
         <div class="tableau" style="margin-top:8px"><table>
-          <thead><tr><th>Mois</th>${series.map(x => `<th>${x.nom}</th>`).join("")}<th>Total</th></tr></thead>
-          <tbody>${r.mois.map(x => `<tr><td>Mois ${x.mois}</td>${series.map(s => `<td>${dollars(arrondi(x[s.cle]))}</td>`).join("")}<td>${dollars(arrondi(r.total(x)))}</td></tr>`).join("")}
-          <tr class="total"><td>Année 1</td>${series.map(s => `<td>${dollars(arrondi(r.mois.reduce((t, x) => t + x[s.cle], 0)))}</td>`).join("")}<td>${dollars(arrondi(r.annee1))}</td></tr></tbody>
+          <thead><tr><th>Mois</th>${series.map(s => `<th>${s.nom}</th>`).join("")}<th>Total</th></tr></thead>
+          <tbody>${r.mois.map(x => `<tr><td>Mois ${x.mois}</td>${series.map(s => `<td>${dollars(arrondi(x[s.cle]))}</td>`).join("")}<td>${dollars(arrondi(r.total(x)))}</td></tr>`).join("")}</tbody>
         </table></div>
       </details>
     </section>
 
     <section aria-labelledby="t-scenarios">
-      <h3 id="t-scenarios">Combien avec 10 fromageries, puis plus</h3>
+      <h3 id="t-scenarios">Avec 10 fromageries, puis plus</h3>
+      <p class="note">Mêmes réglages, seul le nombre de fromageries en plus l'année 1 change (et ${sim.ensuite} nouvelles par an ensuite).</p>
       <div class="tableau"><table>
-        <thead><tr><th>Fromageries</th><th>Adresses</th><th>Année 1</th><th>Par mois, à la fin</th><th>Année 2</th></tr></thead>
-        <tbody>${scenarios.map(({ a, r: x }) => `<tr class="${a === sim.autres ? "choisie" : ""}"><td>${x.fromageries} <span class="doux">(${x.fondatrices} fondatrices + ${x.fromageries - x.fondatrices} standard)</span></td><td>${String(Math.round(x.adresses * 10) / 10).replace(".", ",")}</td><td>${dollars(arrondi(x.annee1))}</td><td>${dollars(arrondi(x.regime))}</td><td>${dollars(arrondi(x.annee2))}</td></tr>`).join("")}</tbody>
+        <thead><tr><th>L'année 1</th><th>Année 1</th><th>Année 2</th><th>Année 3</th><th>Année 4</th><th>Par mois en croisière</th></tr></thead>
+        <tbody>${scenarios.map(({ a, r: x }) => `<tr class="${a === sim.autres ? "choisie" : ""}"><td>${x.fondatrices} fondatrices + ${a + Math.max(0, D().maisons.filter(m => m.statut !== "refus").length - D().placesFondateur)}</td>${x.annees.map(y => `<td>${dollars(arrondi(y.total))}</td>`).join("")}<td>${dollars(arrondi(x.croisiere))}</td></tr>`).join("")}</tbody>
       </table></div>
-      <p class="note">Au-delà des 10 fondatrices, le calcul garde le standard actuel (${dollars(D().tarifs.standard.premiere)} + ${dollars(D().tarifs.standard.suivante)}). S'il remonte à ${D().tarifs.plusTard ? `${D().tarifs.plusTard.standardMin}–${D().tarifs.plusTard.standardMax} $` : "69–79 $"} après 6 mois de statistiques, les nouvelles fromageries rapportent plus. Les abonnements des amateurs (FromaGlobe+) ne sont pas comptés ici.</p>
+      <p class="note">Hypothèses : le standard ${dollars(t.standard.premiere)} reste acquis aux fromageries signées avant le mois ${moisRemonte} ; chaque adresse suivante reste à ${dollars(t.standard.suivante)} dans tous les tarifs ; une fondatrice qui ouvre une adresse n'est pas comptée ; les abonnements des amateurs (FromaGlobe+) ne sont pas comptés.</p>
     </section>`;
   brancheLaBulle(r, series);
 }
 
-// Barres empilées, une par mois. Fondatrices en bas, mise en place en haut.
+// Barres empilées, une par mois, avec trois repères : nouveau standard, niveau, fin du prix fondateur.
 function barres(r, series) {
-  const L = 720, H = 268, g = 54, d = 8, h = 22, b = 36;
+  const L = 760, H = 290, g = 54, d = 8, h = 34, b = 40;
   const max = Math.max(1, ...r.mois.map(x => r.total(x)));
   const pas = [100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000].find(p => max / p <= 5) || 100000;
   const haut = Math.ceil(max / pas) * pas;
   const y = v => H - b - (v / haut) * (H - b - h);
   const larg = (L - g - d) / MOIS;
-  const barre = Math.min(34, larg * 0.62);
-  let svg = `<svg viewBox="0 0 ${L} ${H}" role="img" aria-label="Revenus mensuels de la première année, ${dollars(arrondi(r.annee1))} au total">`;
+  const barre = Math.max(4, larg - 3);
+  let svg = `<svg viewBox="0 0 ${L} ${H}" role="img" aria-label="Revenus mensuels sur 4 ans">`;
   for (let v = 0; v <= haut; v += pas) {
     svg += `<line class="grille" x1="${g}" x2="${L - d}" y1="${y(v)}" y2="${y(v)}"/><text class="axe" x="${g - 8}" y="${y(v) + 4}" text-anchor="end">${v >= 1000 ? `${(v / 1000).toLocaleString("fr-CA")} k$` : `${v} $`}</text>`;
   }
+  const repere = (mois, texte, ligne) => {
+    const x = g + larg * (mois - 1);
+    return `<line x1="${x}" x2="${x}" y1="${h - 4 + ligne * 12}" y2="${H - b}" stroke="var(--encre-douce)" stroke-dasharray="3 3" stroke-width="1"/><text class="axe" x="${x + 4}" y="${h + 6 + ligne * 12}" style="fill:var(--encre)">${texte}</text>`;
+  };
+  svg += repere(r.p.moisRemonte, `nouveau standard`, 0);
+  svg += repere(13, sim.niveau ? `an 2 · niveau ~${r.p.niveau} $` : "an 2", 1);
+  svg += repere(r.p.finFondateur + 1, "fin du prix fondateur", 0);
+  svg += repere(37, "an 4", 1);
   r.mois.forEach((x, i) => {
     const cx = g + larg * i + larg / 2;
     let base = 0;
-    const visibles = series.filter(s => x[s.cle] > 0);
+    const visibles = series.filter(s => x[s.cle] > 0.5);
     visibles.forEach((s, j) => {
       const y0 = y(base), y1 = y(base + x[s.cle]);
-      const dessus = j === visibles.length - 1;
       const hauteur = Math.max(0, y0 - y1 - (j > 0 ? 2 : 0));
-      const top = y1, gauche = cx - barre / 2;
+      const gauche = cx - barre / 2;
       if (hauteur > 0) {
-        svg += dessus && hauteur > 4
-          ? `<path d="M${gauche},${top + hauteur} V${top + 4} Q${gauche},${top} ${gauche + 4},${top} H${gauche + barre - 4} Q${gauche + barre},${top} ${gauche + barre},${top + 4} V${top + hauteur} Z" fill="${s.couleur}"/>`
-          : `<rect x="${gauche}" y="${top}" width="${barre}" height="${hauteur}" fill="${s.couleur}"/>`;
+        svg += j === visibles.length - 1 && hauteur > 3
+          ? `<path d="M${gauche},${y1 + hauteur} V${y1 + 2} Q${gauche},${y1} ${gauche + 2},${y1} H${gauche + barre - 2} Q${gauche + barre},${y1} ${gauche + barre},${y1 + 2} V${y1 + hauteur} Z" fill="${s.couleur}"/>`
+          : `<rect x="${gauche}" y="${y1}" width="${barre}" height="${hauteur}" fill="${s.couleur}"/>`;
       }
       base += x[s.cle];
     });
-    svg += `<text class="axe" x="${cx}" y="${H - b + 16}" text-anchor="middle">${x.mois}</text>`;
+    if (x.mois === 1 || x.mois % 6 === 0) svg += `<text class="axe" x="${cx}" y="${H - b + 16}" text-anchor="middle">${x.mois}</text>`;
     svg += `<rect class="zone" data-i="${i}" x="${g + larg * i}" y="${h}" width="${larg}" height="${H - b - h}" fill="transparent"/>`;
   });
-  // Une seule étiquette : le dernier mois, ce que rapporte l'offre une fois en place.
   const dernier = r.mois[MOIS - 1];
-  svg += `<text class="axe" x="${g + larg * (MOIS - 0.5)}" y="${y(r.total(dernier)) - 6}" text-anchor="middle" style="fill:var(--encre);font-weight:600">${dollars(arrondi(r.total(dernier)))}</text>`;
-  svg += `<text class="axe" x="${g + (L - g - d) / 2}" y="${H - 2}" text-anchor="middle">mois après le lancement de l'offre</text>`;
+  svg += `<text class="axe" x="${L - d}" y="${Math.min(y(r.total(dernier)) - 8, h - 14)}" text-anchor="end" style="fill:var(--encre);font-weight:600">${dollars(arrondi(r.total(dernier)))} / mois</text>`;
+  svg += `<text class="axe" x="${g + (L - g - d) / 2}" y="${H - 4}" text-anchor="middle">mois après le lancement de l'offre</text>`;
   return svg + `</svg>`;
 }
 
@@ -917,12 +1001,11 @@ function brancheLaBulle(r, series) {
   const svg = boite.querySelector("svg");
   const montre = zone => {
     const x = r.mois[Number(zone.dataset.i)];
-    bulle.innerHTML = `<div><strong>Mois ${x.mois}</strong></div>` +
+    bulle.innerHTML = `<div><strong>Mois ${x.mois}</strong> · année ${Math.ceil(x.mois / 12)}</div>` +
       series.map(s => `<div class="l"><span><i style="background:${s.couleur}"></i>${s.nom}</span><span>${dollars(arrondi(x[s.cle]))}</span></div>`).join("") +
       `<div class="l t"><span>Total</span><span>${dollars(arrondi(r.total(x)))}</span></div>`;
     const zb = zone.getBoundingClientRect(), bb = boite.getBoundingClientRect();
-    const gauche = Math.min(Math.max(zb.left - bb.left + zb.width / 2, 95), bb.width - 95);
-    bulle.style.left = `${gauche}px`;
+    bulle.style.left = `${Math.min(Math.max(zb.left - bb.left + zb.width / 2, 95), bb.width - 95)}px`;
     bulle.style.top = `${zb.top - bb.top + 8}px`;
     bulle.hidden = false;
   };
@@ -1257,14 +1340,17 @@ document.getElementById("filtres").onclick = e => { const b = e.target.closest("
 document.getElementById("liste").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
 document.getElementById("a-faire").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
 document.getElementById("vue-simulation").addEventListener("click", e => { const b = e.target.closest("[data-cas]"); if (b) { sim.cas = b.dataset.cas; dessineSimulation(); } });
+// Pendant le glissement, seul le chiffre bouge ; on recalcule au lâcher.
 document.getElementById("vue-simulation").addEventListener("input", e => {
-  // Pendant le glissement, seul le chiffre bouge ; on recalcule au lâcher.
-  if (e.target.id === "sim-autres") document.getElementById("sim-autres-valeur").textContent = e.target.value;
+  const cle = e.target.dataset.sim;
+  if (cle && e.target.type === "range") document.querySelector(`[data-valeur="${cle}"]`).textContent = e.target.value;
 });
 document.getElementById("vue-simulation").addEventListener("change", e => {
-  if (e.target.id === "sim-autres") { sim.autres = Number(e.target.value); dessineSimulation(); document.getElementById("sim-autres").focus(); }
-  if (e.target.id === "sim-adresses") { sim.adresses = Number(e.target.value); dessineSimulation(); }
-  if (e.target.id === "sim-liste") { sim.liste = e.target.value; dessineSimulation(); }
+  const cle = e.target.dataset.sim;
+  if (!cle) return;
+  sim[cle] = ["liste", "apresFondateur"].includes(cle) ? e.target.value : Number(e.target.value);
+  dessineSimulation();
+  const meme = document.querySelector(`[data-sim="${cle}"]`); if (meme) meme.focus();
 });
 document.getElementById("vue-offre").addEventListener("change", e => { if (e.target.id === "nb-adresses") { adressesCalculees = Number(e.target.value); dessineOffre(); } });
 document.getElementById("modeles").onclick = e => { const b = e.target.closest("[data-modele]"); if (b) {
