@@ -324,6 +324,7 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
       <a href="#offre" data-vue="offre"><img class="ico" src="img/porte-prix.png" alt="">L'offre</a>
       <a href="#simulation" data-vue="simulation"><img class="ico" src="img/medaille-champion.png" alt="">Simulation</a>
       <a href="#courriels" data-vue="courriels"><img class="ico" src="img/carnet-page.png" alt="">Courriels</a>
+      <a href="#facturation" data-vue="facturation"><img class="ico" src="img/calendrier.png" alt="">Facturation</a>
     </nav>
     <p class="etat" id="etat" role="status" aria-live="polite"></p>
   </header>
@@ -347,6 +348,9 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 
   <!-- La simulation des revenus -->
   <div class="vue" id="vue-simulation" hidden></div>
+
+  <!-- La facturation : taxes, mentions, devises -->
+  <div class="vue" id="vue-facturation" hidden></div>
 
   <!-- Les courriels -->
   <div class="vue" id="vue-courriels" hidden>
@@ -425,7 +429,31 @@ function dateCourte(iso) {
   if (!iso) return "";
   return versDate(iso).toLocaleDateString("fr-CA", { day: "numeric", month: "short" });
 }
-function dollars(n) { return `${n.toLocaleString("fr-CA")} $`; }
+// Le montant dans sa devise : « 29 $ » ou « 29 € ». La devise courante change le
+// temps de dessiner une fiche, l'offre en euros, ou un courriel à une maison française.
+let deviseCourante = "CAD";
+function dollars(n, devise = deviseCourante) { return `${n.toLocaleString("fr-CA")} ${devise === "EUR" ? "€" : "$"}`; }
+function avecDevise(devise, fonction) { const avant = deviseCourante; deviseCourante = devise; try { return fonction(); } finally { deviseCourante = avant; } }
+
+// Les pays : chacun sa devise et ses places fondateur (mêmes chiffres, autre monnaie).
+const PAYS = () => D().pays || { Canada: { devise: "CAD", places: D().placesFondateur } };
+const paysDe = m => m.pays || "Canada";
+const deviseDe = m => (PAYS()[paysDe(m)] || {}).devise || "CAD";
+// Le taux de l'euro en dollars canadiens : celui de la Banque du Canada, lu en direct,
+// sinon le dernier relevé gardé dans demarches.json.
+const tauxEuro = { valeur: null, date: null };
+const taux = devise => devise === "EUR" ? (tauxEuro.valeur || D().tauxEURCAD?.valeur || 1.59) : 1;
+async function lisLeTaux() {
+  try {
+    const r = await fetch("https://www.bankofcanada.ca/valet/observations/FXEURCAD/json?recent=1", { cache: "no-store" });
+    const o = (await r.json()).observations[0];
+    tauxEuro.valeur = Number(o.FXEURCAD.v); tauxEuro.date = o.d;
+  } catch {}
+}
+const texteDuTaux = () => {
+  const v = taux("EUR"), date = tauxEuro.date || D().tauxEURCAD?.date;
+  return `1 € = ${v.toLocaleString("fr-CA", { minimumFractionDigits: 4 })} $ CA (Banque du Canada${date ? `, ${dateLisible(date)}` : ""})`;
+};
 function base64VersTexte(b) {
   const binaire = atob(b.replace(/\s/g, ""));
   return new TextDecoder().decode(Uint8Array.from(binaire, c => c.charCodeAt(0)));
@@ -455,9 +483,10 @@ function prixPour(n) {
 }
 const tarifs = m => prixPour(m.adresses.length);
 function prixRetenu(m) { const t = tarifs(m); return m.fondateur ? t.fondateur : t.standard; }
-function placesRestantes() {
-  const prises = D().maisons.filter(m => m.statut === "signee" && m.fondateur).length;
-  return Math.max(0, D().placesFondateur - prises);
+const placesDe = pays => (PAYS()[pays] || {}).places ?? D().placesFondateur;
+function placesRestantes(pays = "Canada") {
+  const prises = D().maisons.filter(m => paysDe(m) === pays && m.statut === "signee" && m.fondateur).length;
+  return Math.max(0, placesDe(pays) - prises);
 }
 
 function etat(texte, erreur = false) {
@@ -533,7 +562,7 @@ function afficheErreur(e) {
 
 // ---------- Les vues ----------
 
-const VUES = ["suivi", "offre", "simulation", "courriels"];
+const VUES = ["suivi", "offre", "simulation", "courriels", "facturation"];
 function montreVue(nom) {
   vue = VUES.includes(nom) ? nom : "suivi";
   for (const v of VUES) document.getElementById(`vue-${v}`).hidden = v !== vue;
@@ -546,6 +575,7 @@ function dessine() {
   if (vue === "suivi") { dessineTableauDeBord(); dessineAFaire(); dessineFiltres(); dessineListe(); }
   if (vue === "offre") dessineOffre();
   if (vue === "simulation") dessineSimulation();
+  if (vue === "facturation") dessineFacturation();
   if (vue === "courriels") dessineCourriels();
 }
 
@@ -554,15 +584,17 @@ function dessine() {
 function dessineTableauDeBord() {
   const maisons = D().maisons;
   const signees = maisons.filter(m => m.statut === "signee");
-  const parMois = signees.reduce((s, m) => s + prixRetenu(m), 0);
+  const parMois = signees.reduce((s, m) => s + prixRetenu(m) * taux(deviseDe(m)), 0);
   const enCours = maisons.filter(m => !["signee", "refus"].includes(m.statut));
-  const potentiel = enCours.reduce((s, m) => s + prixRetenu(m), 0);
+  const potentiel = enCours.reduce((s, m) => s + prixRetenu(m) * taux(deviseDe(m)), 0);
+  const avecEuros = maisons.some(m => deviseDe(m) === "EUR");
+  const paysPresents = [...new Set(["Canada", ...maisons.map(paysDe)])];
   const adressesSignees = signees.reduce((s, m) => s + m.adresses.length, 0);
   document.getElementById("tableau-de-bord").innerHTML = `
-    <div class="tuile"><span class="etiquette">Places fondateur</span><span class="valeur">${placesRestantes()}<span class="doux" style="font-size:1rem"> / ${D().placesFondateur}</span></span><span class="sous">encore libres</span></div>
+    <div class="tuile"><span class="etiquette">Places fondateur</span><span class="valeur">${placesRestantes()}<span class="doux" style="font-size:1rem"> / ${placesDe("Canada")}</span></span><span class="sous">${paysPresents.length > 1 ? paysPresents.map(p => `${p} ${placesRestantes(p)}/${placesDe(p)}`).join(" · ") : "encore libres au Canada"}</span></div>
     <div class="tuile"><span class="etiquette">Signées</span><span class="valeur">${signees.length}</span><span class="sous">${adressesSignees} adresse${adressesSignees > 1 ? "s" : ""}</span></div>
-    <div class="tuile"><span class="etiquette">Signé, par mois</span><span class="valeur">${dollars(parMois)}</span><span class="sous">après les mois offerts</span></div>
-    <div class="tuile"><span class="etiquette">En cours</span><span class="valeur">${dollars(potentiel)}</span><span class="sous">par mois si ${enCours.length} maison${enCours.length > 1 ? "s" : ""} signe${enCours.length > 1 ? "nt" : ""}</span></div>`;
+    <div class="tuile"><span class="etiquette">Signé, par mois</span><span class="valeur">${dollars(Math.round(parMois), "CAD")}</span><span class="sous">après les mois offerts${avecEuros ? ", euros convertis" : ""}</span></div>
+    <div class="tuile"><span class="etiquette">En cours</span><span class="valeur">${dollars(Math.round(potentiel), "CAD")}</span><span class="sous">par mois si ${enCours.length} maison${enCours.length > 1 ? "s" : ""} signe${enCours.length > 1 ? "nt" : ""}</span></div>`;
 }
 
 function dessineAFaire() {
@@ -619,7 +651,7 @@ function dessineListe() {
     return `<button class="maison" data-maison="${echappe(m.id)}">
       <div class="tete"><div class="identite">${avatar(m)}<h3>${echappe(m.nom)}</h3></div><span class="pastille s-${m.statut}">${nomDuStatut(m.statut)}</span></div>
       <div class="meta">
-        <span>${m.adresses.length} adresse${m.adresses.length > 1 ? "s" : ""} · <span class="chiffre">${dollars(t.fondateur)}</span> fondateur · <span class="chiffre">${dollars(t.standard)}</span> standard</span>
+        <span>${m.adresses.length} adresse${m.adresses.length > 1 ? "s" : ""} · <span class="chiffre">${dollars(t.fondateur, deviseDe(m))}</span> fondateur · <span class="chiffre">${dollars(t.standard, deviseDe(m))}</span> standard${paysDe(m) !== "Canada" ? ` · ${echappe(paysDe(m))}` : ""}</span>
         ${m.contact.nom ? `<span>Contact : ${echappe(m.contact.nom)}${m.contact.role ? ` (${echappe(m.contact.role)})` : ""}</span>` : ""}
         ${relance}
       </div>
@@ -658,20 +690,32 @@ function avatar(m) {
 
 // ---------- L'offre, comparée ----------
 
-function dessineOffre() {
+let deviseDeLOffre = "CAD";
+function dessineOffre() { avecDevise(deviseDeLOffre, dessineOffreDansSaDevise); }
+function dessineOffreDansSaDevise() {
   const t = D().tarifs, pt = t.plusTard || {};
+  const paysDeLOffre = deviseDeLOffre === "EUR" ? "France" : "Canada";
   const p1 = prixPour(1);
   const lignes = [1, 2, 3, 4, 5, 6].map(n => {
     const p = prixPour(n);
     return `<tr class="${n === adressesCalculees ? "choisie" : ""}"><td>${n} adresse${n > 1 ? "s" : ""}</td><td>${dollars(p.fondateur)}</td><td>${dollars(p.standard)}</td><td>${dollars(p.standard * 10)}</td><td>${p.miseEnPlaceFondateur ? dollars(p.miseEnPlaceFondateur) : "offerte"}</td><td>${dollars(p.miseEnPlacePetite)} · ${dollars(p.miseEnPlaceGrande)}</td></tr>`;
   }).join("");
   const maisons = [...D().maisons].sort((a, b) => b.adresses.length - a.adresses.length || a.nom.localeCompare(b.nom, "fr"));
-  const totalF = maisons.reduce((s, m) => s + tarifs(m).fondateur, 0);
-  const totalS = maisons.reduce((s, m) => s + tarifs(m).standard, 0);
+  const totalF = maisons.reduce((s, m) => s + tarifs(m).fondateur * taux(deviseDe(m)), 0);
+  const totalS = maisons.reduce((s, m) => s + tarifs(m).standard * taux(deviseDe(m)), 0);
   const totalA = maisons.reduce((s, m) => s + m.adresses.length, 0);
   const oui = `<td class="oui">Oui</td>`, non = `<td class="non">Non</td>`;
 
   document.getElementById("vue-offre").innerHTML = `
+    <div class="rangee-boutons" style="align-items:center">
+      <span class="segment" role="group" aria-label="Devise">
+        <button type="button" data-devise="CAD" aria-pressed="${deviseDeLOffre === "CAD"}">Canada · $ CA</button>
+        <button type="button" data-devise="EUR" aria-pressed="${deviseDeLOffre === "EUR"}">France · €</button>
+      </span>
+      <span class="note">${deviseDeLOffre === "EUR"
+        ? `Mêmes chiffres qu'au Canada, en euros : ${dollars(p1.fondateur)} ≈ ${dollars(Math.round(p1.fondateur * taux("EUR")), "CAD")} au taux du jour, soit ${texteDuTaux()}. Hors taxes : la fromagerie autoliquide la TVA.`
+        : "Dollars canadiens, avant taxes (TPS et TVQ en sus)."}</span>
+    </div>
     <section aria-labelledby="t-formules">
       <header><span class="etiquette">Côté fromagerie</span><h2 id="t-formules">Deux formules</h2>
       <p class="note">Toute fromagerie ajoutée a la présence. Le reste s'ouvre avec le partenariat. Une entrée et un prix par adresse.</p></header>
@@ -708,7 +752,7 @@ function dessineOffre() {
       <header><span class="etiquette">Partenaire</span><h2 id="t-tarifs">Trois tarifs</h2></header>
       <div class="trois">
         <div class="boite partenaire">
-          <div class="tete-boite"><img src="img/medaille-or.png" alt=""><div><span class="etiquette">Les ${D().placesFondateur} premières · reste ${placesRestantes()}</span><h3>Fondateur</h3></div></div>
+          <div class="tete-boite"><img src="img/medaille-or.png" alt=""><div><span class="etiquette">Les ${placesDe(paysDeLOffre)} premières · ${paysDeLOffre} · reste ${placesRestantes(paysDeLOffre)}</span><h3>Fondateur</h3></div></div>
           <span class="prix-grand">${dollars(t.fondateur.premiere)} + ${dollars(t.fondateur.suivante)}</span>
           <ul><li>${t.fondateur.moisOfferts} mois offerts</li><li>${dollars(t.fondateur.premiere)} la 1re adresse, ${dollars(t.fondateur.suivante)} chaque suivante, par mois</li><li>Prix bloqué ${t.fondateur.anneesBloquees} ans</li><li>Mise en place offerte sur la 1re adresse, ${dollars(t.fondateur.miseEnPlaceSuivante)} par suivante</li><li><strong>Une place par fromagerie</strong>, quel que soit son nombre d'adresses</li><li>Une adresse ouverte pendant les ${t.fondateur.anneesBloquees} ans : ${dollars(t.fondateur.suivante)} par mois, au tarif fondateur jusqu'à la fin</li><li>En échange : leurs retours et une affiche en boutique</li></ul>
         </div>
@@ -727,7 +771,7 @@ function dessineOffre() {
 
     <section aria-labelledby="t-calcul">
       <header><span class="etiquette">Combien on facture</span><h2 id="t-calcul">Selon le nombre d'adresses</h2>
-      <p class="note">Prix par mois = 1re adresse + (adresses − 1) × adresse suivante. Dollars canadiens, avant taxes (TPS et TVQ en sus).</p></header>
+      <p class="note">Prix par mois = 1re adresse + (adresses − 1) × adresse suivante. ${deviseDeLOffre === "EUR" ? "Euros, hors taxes (autoliquidation de la TVA par la fromagerie)." : "Dollars canadiens, avant taxes (TPS et TVQ en sus)."}</p></header>
       <div class="calculateur"><label for="nb-adresses">Surligner</label>
         <select id="nb-adresses">${[1, 2, 3, 4, 5, 6].map(n => `<option value="${n}" ${n === adressesCalculees ? "selected" : ""}>${n} adresse${n > 1 ? "s" : ""}</option>`).join("")}</select></div>
       <div class="tableau"><table>
@@ -740,8 +784,8 @@ function dessineOffre() {
       <header><span class="etiquette">Les maisons du suivi</span><h2 id="t-maisons-prix">Ce que chacune paierait</h2></header>
       <div class="tableau"><table>
         <thead><tr><th>Fromagerie</th><th>Adresses</th><th>Fondateur</th><th>Standard</th></tr></thead>
-        <tbody>${maisons.map(m => `<tr><td>${echappe(m.nom)} <span class="pastille s-${m.statut}">${nomDuStatut(m.statut)}</span></td><td>${m.adresses.length}</td><td>${dollars(tarifs(m).fondateur)}</td><td>${dollars(tarifs(m).standard)}</td></tr>`).join("")}
-          <tr class="total"><td>Si toutes signent</td><td>${totalA}</td><td>${dollars(totalF)}</td><td>${dollars(totalS)}</td></tr></tbody>
+        <tbody>${maisons.map(m => `<tr><td>${echappe(m.nom)} <span class="pastille s-${m.statut}">${nomDuStatut(m.statut)}</span></td><td>${m.adresses.length}</td><td>${dollars(tarifs(m).fondateur, deviseDe(m))}</td><td>${dollars(tarifs(m).standard, deviseDe(m))}</td></tr>`).join("")}
+          <tr class="total"><td>Si toutes signent${maisons.some(m => deviseDe(m) === "EUR") ? " (euros convertis)" : ""}</td><td>${totalA}</td><td>${dollars(Math.round(totalF), "CAD")}</td><td>${dollars(Math.round(totalS), "CAD")}</td></tr></tbody>
       </table></div>
     </section>
 
@@ -770,6 +814,7 @@ const sim = {
   cochees: new Set(["atwater"]),
   duree: 3,            // en années
   autres: 0,           // fromageries hors suivi signées au 1er mois, au standard
+  france: 0,           // fromageries françaises en hypothèse, au tarif fondateur en euros
   ensuite: 0,          // nouvelles fromageries hors suivi par an, à partir de l'an 2
   adresses: 1,         // adresses de ces fromageries hors suivi
   liste: "petite",     // taille de leur liste de caisse (prix de la mise en place)
@@ -797,18 +842,28 @@ function contratsSimules() {
   const { t } = parametres();
   const cochees = D().maisons.filter(m => sim.cochees.has(m.id))
     .sort((a, b) => b.adresses.length - a.adresses.length || a.nom.localeCompare(b.nom, "fr"));
-  const contrats = cochees.map((m, i) => ({
-    id: m.id, nom: m.nom, adresses: m.adresses.length, signe: 1,
-    type: i < D().placesFondateur ? "fondateur" : "standard", liste: "petite",
-  }));
-  for (let j = 0; j < sim.autres; j++) contrats.push({ id: "autre", nom: "Hors suivi", adresses: sim.adresses, signe: 1, type: "standard", liste: sim.liste });
+  // Les places fondateur se comptent par pays.
+  const prises = {};
+  const contrats = cochees.map(m => {
+    const pays = paysDe(m);
+    prises[pays] = (prises[pays] || 0) + 1;
+    return {
+      id: m.id, nom: m.nom, adresses: m.adresses.length, signe: 1, devise: deviseDe(m),
+      type: prises[pays] <= placesDe(pays) ? "fondateur" : "standard", liste: "petite",
+    };
+  });
+  const placesFrance = Math.max(0, placesDe("France") - (prises.France || 0));
+  for (let j = 0; j < sim.france; j++) contrats.push({ id: "france", nom: "En France (hypothèse)", adresses: 1, signe: 1, devise: "EUR", type: j < placesFrance ? "fondateur" : "standard", liste: "petite" });
+  for (let j = 0; j < sim.autres; j++) contrats.push({ id: "autre", nom: "Hors suivi", adresses: sim.adresses, signe: 1, devise: "CAD", type: "standard", liste: sim.liste });
   for (let an = 1; an < sim.duree; an++) {
-    for (let j = 0; j < sim.ensuite; j++) contrats.push({ id: "autre", nom: "Hors suivi", adresses: sim.adresses, signe: 12 * an + 1 + Math.floor(j * 12 / sim.ensuite), type: "standard", liste: sim.liste });
+    for (let j = 0; j < sim.ensuite; j++) contrats.push({ id: "autre", nom: "Hors suivi", adresses: sim.adresses, signe: 12 * an + 1 + Math.floor(j * 12 / sim.ensuite), devise: "CAD", type: "standard", liste: sim.liste });
   }
   for (const c of contrats) {
+    c.taux = taux(c.devise);
     c.miseEnPlace = c.type === "fondateur"
       ? (c.adresses - 1) * t.fondateur.miseEnPlaceSuivante
       : (c.liste === "grande" ? t.standard.miseEnPlaceGrande : t.standard.miseEnPlacePetite) + (c.adresses - 1) * t.standard.miseEnPlaceSuivante;
+    c.miseEnPlace *= c.taux;
   }
   return contrats;
 }
@@ -820,7 +875,7 @@ function rapporte(c, k, p) {
   const { t } = p;
   const age = k - c.signe;
   if (age < 0) return r;
-  const reste = Math.pow(1 - sim.departs / 100, age / 12);
+  const reste = Math.pow(1 - sim.departs / 100, age / 12) * (c.taux || 1);
   let base;
   if (c.type === "fondateur") {
     if (age < t.fondateur.moisOfferts) return r;
@@ -845,7 +900,7 @@ function simule() {
   const parMaison = {};
   for (const c of contrats) {
     const parAn = parMaison[c.id] ||= { nom: c.nom, adresses: 0, type: c.type, nombre: 0, annees: Array(sim.duree).fill(0) };
-    if (c.id === "autre") parAn.nombre++; else parAn.adresses = c.adresses;
+    if (c.id === "autre" || c.id === "france") { parAn.nombre++; parAn.adresses += c.adresses; } else parAn.adresses = c.adresses;
     mois[c.signe - 1].miseEnPlace += c.miseEnPlace;
     parAn.annees[Math.floor((c.signe - 1) / 12)] += c.miseEnPlace;
     for (let k = c.signe; k <= N; k++) {
@@ -894,7 +949,7 @@ function dessineSimulation() {
     <section aria-labelledby="t-sim">
       <header><span class="etiquette">Meilleur des cas : signé au 1er mois, payé chaque mois</span>
         <h2 id="t-sim" class="titre-section"><img class="ico-titre" src="img/medaille-champion.png" alt="">Si ces fromageries signent</h2>
-        <p class="note">Touche une fromagerie pour la faire signer. Les ${D().placesFondateur} premières cochées ont le tarif fondateur (une place par fromagerie).</p>
+        <p class="note">Touche une fromagerie pour la faire signer. Les ${placesDe("Canada")} premières cochées de chaque pays ont le tarif fondateur (une place par fromagerie). Tous les montants sont en dollars canadiens ; les euros sont convertis au taux du jour : ${texteDuTaux()}.</p>
       </header>
       <div class="rangee-boutons">
         <span class="segment" role="group" aria-label="Durée">${[1, 2, 3, 4].map(n => `<button type="button" data-duree="${n}" aria-pressed="${sim.duree === n}">${n} an${n > 1 ? "s" : ""}</button>`).join("")}</span>
@@ -939,7 +994,7 @@ function dessineSimulation() {
       <h3 id="t-par-maison">Fromagerie par fromagerie</h3>
       <div class="tableau"><table>
         <thead><tr><th>Fromagerie</th>${r.annees.map(a => `<th>Année ${a.an}</th>`).join("")}<th>Total</th></tr></thead>
-        <tbody>${lignesMaisons.map(([id, x]) => `<tr><td>${echappe(x.nom)}${id === "autre" ? ` <span class="doux">(${x.nombre})</span>` : ` <span class="doux">· ${x.adresses} adr. · ${x.type}</span>`}</td>${x.annees.map(v => `<td>${dollars(arrondi(v))}</td>`).join("")}<td><strong>${dollars(arrondi(x.annees.reduce((s, v) => s + v, 0)))}</strong></td></tr>`).join("")}
+        <tbody>${lignesMaisons.map(([id, x]) => `<tr><td>${echappe(x.nom)}${id === "autre" || id === "france" ? ` <span class="doux">(${x.nombre})</span>` : ` <span class="doux">· ${x.adresses} adr. · ${x.type}</span>`}</td>${x.annees.map(v => `<td>${dollars(arrondi(v))}</td>`).join("")}<td><strong>${dollars(arrondi(x.annees.reduce((s, v) => s + v, 0)))}</strong></td></tr>`).join("")}
         <tr class="total"><td>Total</td>${r.annees.map(a => `<td>${dollars(arrondi(a.total))}</td>`).join("")}<td>${dollars(arrondi(total))}</td></tr></tbody>
       </table></div>
       <details><summary class="lien" style="cursor:pointer">Voir mois par mois</summary>
@@ -961,7 +1016,9 @@ function dessineSimulation() {
           <input type="range" data-sim="niveau" min="0" max="50" step="5" value="${sim.niveau}"></label>
         <label><span>Départs par an : <strong class="chiffre" data-valeur="departs">${sim.departs}</strong> %</span>
           <input type="range" data-sim="departs" min="0" max="30" step="5" value="${sim.departs}"></label>
-        <label><span>Fromageries hors suivi, au 1er mois : <strong class="chiffre" data-valeur="autres">${sim.autres}</strong></span>
+        <label><span>Fromageries en France (hypothèse, 1 adresse) : <strong class="chiffre" data-valeur="france">${sim.france}</strong></span>
+          <input type="range" data-sim="france" min="0" max="20" step="1" value="${sim.france}"></label>
+        <label><span>Fromageries hors suivi au Canada, au 1er mois : <strong class="chiffre" data-valeur="autres">${sim.autres}</strong></span>
           <input type="range" data-sim="autres" min="0" max="100" step="1" value="${sim.autres}"></label>
         <label><span>Puis nouvelles par an : <strong class="chiffre" data-valeur="ensuite">${sim.ensuite}</strong></span>
           <input type="range" data-sim="ensuite" min="0" max="100" step="1" value="${sim.ensuite}"></label>
@@ -1039,14 +1096,98 @@ function brancheLaBulle(r, series) {
   svg.addEventListener("pointerleave", () => { bulle.hidden = true; });
 }
 
+// ---------- La facturation ----------
+
+// Les règles relevées le 18 octobre 2026 aux sources officielles (liens en bas de
+// l'onglet). Les exemples se calculent avec les vrais prix et le taux du jour.
+function dessineFacturation() {
+  const t = D().tarifs;
+  const taxe = n => { const tps = Math.round(n * 5) / 100, tvq = Math.round(n * 9.975) / 100; return { tps, tvq, total: Math.round((n + tps + tvq) * 100) / 100 }; };
+  const deux = n => n.toLocaleString("fr-CA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const exemples = [1, 2, 5].map(n => ({ n, prix: prixPour(n).fondateur }));
+  document.getElementById("vue-facturation").innerHTML = `
+    <section aria-labelledby="t-fact">
+      <header><span class="etiquette">Relevé le 18 octobre 2026 aux sources officielles</span>
+        <h2 id="t-fact" class="titre-section"><img class="ico-titre" src="img/calendrier.png" alt="">Facturer les fromageries</h2>
+        <p class="note">Ta situation : travailleur autonome au Québec, inscription aux fichiers de la TPS et de la TVQ demandée le 1er octobre 2026. Les sources sont en bas de l'onglet.</p>
+      </header>
+    </section>
+
+    <section aria-labelledby="t-qc">
+      <h3 id="t-qc">Une fromagerie au Québec</h3>
+      <div class="boite">
+        <ul>
+          <li><strong>Tu factures la TPS (5 %) et la TVQ (9,975 %)</strong> sur l'abonnement et la mise en place. Comme tu es inscrit, c'est obligatoire, même sous le seuil de 30 000 $ du petit fournisseur, et l'inscription vaut au moins un an.</li>
+          <li><strong>Pour la fromagerie, ça ne coûte rien de plus</strong> : inscrite elle aussi, elle récupère ces taxes (crédits et remboursements de taxe sur les intrants). Le vrai prix pour elle reste ${dollars(t.fondateur.premiere, "CAD")}.</li>
+          <li>Tu reverses ces taxes à Revenu Québec à chaque déclaration, selon la période indiquée sur ton avis d'inscription.</li>
+        </ul>
+      </div>
+      <div class="tableau"><table>
+        <thead><tr><th>Tarif fondateur</th><th>Prix</th><th>TPS 5 %</th><th>TVQ 9,975 %</th><th>Total facturé</th></tr></thead>
+        <tbody>${exemples.map(e => { const x = taxe(e.prix); return `<tr><td>${e.n} adresse${e.n > 1 ? "s" : ""}</td><td>${deux(e.prix)} $</td><td>${deux(x.tps)} $</td><td>${deux(x.tvq)} $</td><td><strong>${deux(x.total)} $</strong></td></tr>`; }).join("")}</tbody>
+      </table></div>
+      <h3>Ce que la facture doit montrer</h3>
+      <div class="tableau"><table>
+        <thead><tr><th>Montant total de la facture</th><th>Mentions obligatoires</th></tr></thead>
+        <tbody>
+          <tr><td>Moins de 100 $</td><td style="text-align:left;font-family:var(--texte)">Ton nom (ou nom d'entreprise), la date, le montant total ; pour la TVQ, le montant de taxe et une description du service.</td></tr>
+          <tr><td>100 $ à 499,99 $</td><td style="text-align:left;font-family:var(--texte)">En plus : tes numéros d'inscription TPS et TVQ, et le montant de chaque taxe (ou la mention que le prix les comprend).</td></tr>
+          <tr><td>500 $ et plus</td><td style="text-align:left;font-family:var(--texte)">En plus : le nom de la fromagerie, les modalités de paiement, une description complète du service.</td></tr>
+        </tbody>
+      </table></div>
+      <p class="note">Le plus simple : mettre toujours tout, quel que soit le montant. Un numéro de facture qui se suit (FG-2026-001, FG-2026-002…), « Partenariat FromaGlobe, [mois], [nombre] adresse(s) » comme description, et « payable à réception » ou « sous 30 jours ».</p>
+    </section>
+
+    <section aria-labelledby="t-fr">
+      <h3 id="t-fr">Une fromagerie en France</h3>
+      <div class="boite">
+        <ul>
+          <li><strong>Pas de TPS ni de TVQ</strong> : un service rendu à une entreprise non résidente est détaxé (taux zéro). La facture affiche 0 $ de taxes canadiennes.</li>
+          <li><strong>Pas de TVA française sur ta facture</strong> : c'est la fromagerie, assujettie et identifiée à la TVA en France, qui la déclare et la paie elle-même (autoliquidation). Tu n'as pas à t'inscrire à la TVA en France.</li>
+          <li><strong>Sur la facture</strong> : le montant hors taxes en euros, la mention « Autoliquidation », le numéro de TVA intracommunautaire de la fromagerie (à lui demander à la signature, il commence par FR), et tes numéros TPS et TVQ.</li>
+          <li><strong>Pour être payé</strong> : prélèvement SEPA (le plus courant en France), par exemple avec Stripe, qui verse ensuite en dollars canadiens ; ou un compte en euros (Wise Business, ou ta banque) pour convertir quand le taux t'arrange.</li>
+        </ul>
+      </div>
+      <p class="note">Taux du jour : ${texteDuTaux()}. ${dollars(t.fondateur.premiere, "EUR")} par mois ≈ ${dollars(Math.round(t.fondateur.premiere * taux("EUR")), "CAD")}.</p>
+    </section>
+
+    <section aria-labelledby="t-impot">
+      <h3 id="t-impot">L'impôt sur le revenu</h3>
+      <div class="boite">
+        <ul>
+          <li>Les abonnements sont des revenus d'entreprise : formulaire T2125 au fédéral, TP-80 au Québec.</li>
+          <li><strong>Revenus en euros</strong> : on les convertit en dollars canadiens au taux de la Banque du Canada du jour de chaque facture. Une moyenne de l'année est admise pour des petits montants réguliers si le taux a peu bougé, à condition de faire pareil chaque année.</li>
+          <li>Les taxes encaissées (TPS, TVQ) ne sont pas un revenu : elles se reversent.</li>
+          <li>Garde les factures et les relevés au moins 6 ans.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section aria-labelledby="t-sources">
+      <h3 id="t-sources">Sources</h3>
+      <ul class="note" style="display:grid;gap:4px;padding-left:1.1em">
+        <li><a href="https://www.revenuquebec.ca/fr/entreprises/taxes/tpstvh-et-tvq/perception-de-la-tps-et-de-la-tvq/preparation-des-factures/" target="_blank" rel="noopener">Revenu Québec : préparation des factures</a></li>
+        <li><a href="https://www.revenuquebec.ca/fr/entreprises/taxes/tpstvh-et-tvq/situations-particulieres-liees-a-la-tpstvh-et-a-la-tvq/exportations-hors-du-canada-ou-expeditions-hors-du-quebec/vente-de-services-a-des-non-residents/" target="_blank" rel="noopener">Revenu Québec : vente de services à des non-résidents</a></li>
+        <li><a href="https://www.revenuquebec.ca/en/businesses/consumption-taxes/gsthst-and-qst/registering-for-the-gst-and-qst/small-suppliers/" target="_blank" rel="noopener">Revenu Québec : petit fournisseur</a></li>
+        <li><a href="https://www.canada.ca/en/revenue-agency/services/tax/businesses/topics/gst-hst-businesses/calculate-prepare-report/input-tax-credit.html" target="_blank" rel="noopener">ARC : crédits de taxe sur les intrants (seuils des factures)</a></li>
+        <li><a href="https://www.canada.ca/en/revenue-agency/services/forms-publications/publications/4-5-3/exports-services-intangible-personal-property.html" target="_blank" rel="noopener">ARC : mémorandum 4-5-3, exportations de services</a></li>
+        <li><a href="https://www.canada.ca/en/revenue-agency/services/tax/technical-information/income-tax/income-tax-folios-index/series-5-international-residency/series-5-international-residency-folio-4-foreign-currency/income-tax-folio-s5-f4-c1-income-tax-reporting-currency.html" target="_blank" rel="noopener">ARC : folio S5-F4-C1, monnaie de déclaration</a></li>
+        <li><a href="https://bofip.impots.gouv.fr/bofip/3218-PGP.html/identifiant=BOI-TVA-DECLA-10-10-20-20200311" target="_blank" rel="noopener">BOFiP : redevable de la TVA (autoliquidation, article 283 du CGI)</a></li>
+        <li><a href="https://www.bankofcanada.ca/rates/exchange/daily-exchange-rates/" target="_blank" rel="noopener">Banque du Canada : taux de change quotidiens</a></li>
+      </ul>
+    </section>`;
+}
+
 // ---------- Les courriels ----------
 
 // Les valeurs que les modèles citent entre accolades.
-function variables(m) {
+function variables(m) { return avecDevise(m ? deviseDe(m) : "CAD", () => variablesDansSaDevise(m)); }
+function variablesDansSaDevise(m) {
   const t = D().tarifs.fondateur;
+  const pays = m ? paysDe(m) : "Canada";
   const n = m ? Math.max(1, m.adresses.length) : 1;
   const p = prixPour(n);
-  const places = placesRestantes();
+  const places = placesRestantes(pays);
   const signe = m && m.signeLe;
   return {
     salutation: m && m.contact.nom ? `Bonjour ${m.contact.nom},` : "Bonjour,",
@@ -1064,6 +1205,7 @@ function variables(m) {
     miseEnPlaceFondateur: n === 1 ? "offerte" : `${dollars(p.miseEnPlaceFondateur)} (offerte sur la première adresse, ${dollars(t.miseEnPlaceSuivante)} par adresse suivante)`,
     moisOfferts: String(t.moisOfferts),
     suivanteFondateur: dollars(t.suivante),
+    taxes: deviseCourante === "EUR" ? "hors taxes, TVA due par le preneur (autoliquidation)" : "TPS (5 %) et TVQ (9,975 %) en sus",
     placesRestantes: `${places} place${places > 1 ? "s" : ""}`,
     signeLe: signe ? dateLisible(m.signeLe) : "[DATE DE SIGNATURE]",
     premiereFacture: signe ? dateLisible(plusMois(m.signeLe, t.moisOfferts)) : "[DATE DE PREMIÈRE FACTURE]",
@@ -1133,6 +1275,7 @@ function ouvreModele(id) {
       <footer><span class="doux" id="fiche-etat"></span><button class="bouton plein" type="button" id="enregistrer">Enregistrer</button></footer>
     </form>`;
   dialogue.onkeydown = null;
+  dialogue.onchange = null;
   dialogue.onclick = async ev => {
     const b = ev.target.closest("button");
     if (!b) { if (ev.target === dialogue) dialogue.close(); return; }
@@ -1158,7 +1301,8 @@ function ouvreFiche(id, neuve = false) {
   const m = neuve ? id : structuredClone(original);
   const dialogue = document.getElementById("dialogue");
 
-  const rendu = () => {
+  const rendu = () => avecDevise(deviseDe(m), renduDansSaDevise);
+  const renduDansSaDevise = () => {
     const t = tarifs(m);
     const offerts = D().tarifs.fondateur.moisOfferts, bloque = D().tarifs.fondateur.anneesBloquees;
     const calcule = m.signeLe ? (m.fondateur
@@ -1186,7 +1330,10 @@ function ouvreFiche(id, neuve = false) {
               <label class="champ">${m.statut === "rencontre" ? "Date de la rencontre" : "Prochaine relance"}<input type="date" name="prochaineRelance" value="${m.prochaineRelance || ""}"></label>
               <label class="champ">Signée le<input type="date" name="signeLe" value="${m.signeLe || ""}"></label>
             </div>
-            <label class="case"><input type="checkbox" name="fondateur" ${m.fondateur ? "checked" : ""}> Tarif fondateur (les ${D().placesFondateur} premières)</label>
+            <div class="champs">
+              <label class="champ">Pays (fixe la devise et les places fondateur)<select name="pays">${Object.keys(PAYS()).map(p => `<option ${p === paysDe(m) ? "selected" : ""}>${echappe(p)}</option>`).join("")}</select></label>
+            </div>
+            <label class="case"><input type="checkbox" name="fondateur" ${m.fondateur ? "checked" : ""}> Tarif fondateur (les ${placesDe(paysDe(m))} premières en ${echappe(paysDe(m))})</label>
             <div class="calcule">
               <span><strong class="chiffre">${dollars(m.fondateur ? t.fondateur : t.standard)}</strong> par mois pour ${m.adresses.length} adresse${m.adresses.length > 1 ? "s" : ""} (${m.fondateur ? `standard : ${dollars(t.standard)}` : `fondateur : ${dollars(t.fondateur)}`})</span>
               ${miseEnPlace}
@@ -1249,12 +1396,15 @@ function ouvreFiche(id, neuve = false) {
     m.prochaineRelance = v("prochaineRelance") || null;
     m.signeLe = v("signeLe") || null;
     m.fondateur = f.elements.fondateur.checked;
+    if (f.elements.pays) m.pays = f.elements.pays.value;
     for (const k of ["nom", "role", "courriel", "telephone"]) m.contact[k] = v(`contact.${k}`);
     m.notes = f.elements.notes.value;
   };
   const modifiee = () => { recueille(); return JSON.stringify(m) !== JSON.stringify(original); };
 
   rendu();
+  // Changer de pays change la devise : on redessine la fiche.
+  dialogue.onchange = ev => { if (ev.target.name === "pays") { recueille(); rendu(); } };
   // Entrée dans la note du journal l'ajoute, comme le bouton.
   dialogue.onkeydown = ev => {
     if (ev.key === "Enter" && ev.target.name === "journal.texte") { ev.preventDefault(); dialogue.querySelector("#ajoute-entree").click(); }
@@ -1335,6 +1485,7 @@ async function charge() {
     etat(`À jour · modifié le ${dateLisible(D().modifieLe.slice(0, 10))}.`);
     montreVue(location.hash.slice(1));
     chargeLesLogos();
+    lisLeTaux().then(() => dessine());
     return true;
   } catch (e) {
     return e;
@@ -1385,6 +1536,7 @@ document.getElementById("vue-simulation").addEventListener("change", e => {
   const y = scrollY; dessineSimulation(); scrollTo(0, y);
   const meme = document.querySelector(`[data-sim="${cle}"]`); if (meme) meme.focus({ preventScroll: true });
 });
+document.getElementById("vue-offre").addEventListener("click", e => { const b = e.target.closest("[data-devise]"); if (b) { deviseDeLOffre = b.dataset.devise; dessineOffre(); } });
 document.getElementById("vue-offre").addEventListener("change", e => { if (e.target.id === "nb-adresses") { adressesCalculees = Number(e.target.value); dessineOffre(); } });
 document.getElementById("modeles").onclick = e => { const b = e.target.closest("[data-modele]"); if (b) {
   modeleChoisi = b.dataset.modele; dessineCourriels();
