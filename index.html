@@ -337,7 +337,7 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
       <a href="#offre" data-vue="offre"><img class="ico" src="img/porte-prix.png" alt="">L'offre</a>
       <a href="#simulation" data-vue="simulation"><img class="ico" src="img/medaille-champion.png" alt="">Simulation</a>
       <a href="#courriels" data-vue="courriels"><img class="ico" src="img/carnet-page.png" alt="">Courriels</a>
-      <a href="#todo" data-vue="todo"><img class="ico" src="img/carnet-quete.png" alt="">To do <span class="chiffre" id="compte-todo"></span></a>
+      <a href="#todo" data-vue="todo"><img class="ico" src="img/carnet-quete.png" alt="">To do</a>
       <a href="#facturation" data-vue="facturation"><img class="ico" src="img/calendrier.png" alt="">Facturation</a>
     </nav>
     <p class="etat" id="etat" role="status" aria-live="polite"></p>
@@ -589,8 +589,6 @@ function montreVue(nom) {
 }
 
 function dessine() {
-  const restantes = (fichiers.todo.donnees?.taches || []).filter(x => !x.fait).length;
-  document.getElementById("compte-todo").textContent = restantes ? String(restantes) : "";
   if (vue === "suivi") { dessineTableauDeBord(); dessineAFaire(); dessineFiltres(); dessineListe(); }
   if (vue === "offre") dessineOffre();
   if (vue === "simulation") dessineSimulation();
