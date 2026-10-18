@@ -275,7 +275,10 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 .avance summary { cursor: pointer; font-weight: 500; }
 .avance[open] { gap: 10px; }
 .avance .reglages { border: 0; padding: 0; background: none; margin-top: 10px; }
-.ajout-tache { display: grid; grid-template-columns: 2fr 2fr 160px auto; gap: 8px; }
+.ajout-tache { display: grid; grid-template-columns: 2fr 2fr 150px 150px auto; gap: 8px; }
+.ajout-tache select { background: var(--carte); border: 1px solid var(--filet); border-radius: 8px; padding: 9px 10px; font-size: 16px; color: var(--encre); }
+.groupe-taches { display: grid; gap: 8px; }
+.groupe-taches h3 { font-size: 1.05rem; }
 @media (max-width: 720px) { .ajout-tache { grid-template-columns: 1fr; } }
 .ajout-tache input { background: var(--carte); border: 1px solid var(--filet); border-radius: 8px; padding: 9px 10px; font-size: 16px; color: var(--encre); min-width: 0; }
 .taches { display: grid; gap: 8px; }
@@ -1199,6 +1202,8 @@ function dessineFacturation() {
 // ---------- To do ----------
 
 // Les choses à faire, hors démarches : écrites ici ou par Claude dans todo.json.
+// Deux listes : ce qui se fait dans le code (l'app, le site), et ce que John fait en vrai.
+const CATEGORIES = [["vrai", "En vrai", "boutique-devanture"], ["code", "Code de l'app", "porte-prix"]];
 function dessineTodo() {
   const taches = fichiers.todo.donnees?.taches || [];
   const restent = taches.filter(x => !x.fait).sort((a, b) => (a.echeance || "9999").localeCompare(b.echeance || "9999") || a.ajouteLe.localeCompare(b.ajouteLe));
@@ -1223,10 +1228,17 @@ function dessineTodo() {
       <form class="ajout-tache" id="ajout-tache" onsubmit="return false">
         <input name="texte" placeholder="Nouvelle tâche…" aria-label="Nouvelle tâche" autocomplete="off">
         <input name="quand" placeholder="Quand (facultatif) : après Atwater, en novembre…" aria-label="Quand" autocomplete="off">
+        <select name="categorie" aria-label="Catégorie">${CATEGORIES.map(([cat, nom]) => `<option value="${cat}">${nom}</option>`).join("")}</select>
         <input name="echeance" type="date" aria-label="Échéance (facultatif)">
         <button type="submit" class="bouton plein" id="ajouter-tache">Ajouter</button>
       </form>
-      <div class="taches">${restent.length ? restent.map(ligne).join("") : `<p class="vide">Rien à faire. Profites-en.</p>`}</div>
+      ${CATEGORIES.map(([cat, nom, icone]) => {
+        const liste = restent.filter(x => (x.categorie || "vrai") === cat);
+        return `<div class="groupe-taches">
+          <h3 class="titre-section"><img class="ico" src="img/${icone}.png" alt="">${nom} <span class="doux chiffre">${liste.length}</span></h3>
+          <div class="taches">${liste.length ? liste.map(ligne).join("") : `<p class="vide">Rien ici.</p>`}</div>
+        </div>`;
+      }).join("")}
       ${faites.length ? `<details><summary class="lien">Fait (${faites.length})</summary><div class="taches" style="margin-top:8px">${faites.map(ligne).join("")}</div></details>` : ""}
     </section>`;
 }
@@ -1238,6 +1250,7 @@ async function ajouteTache() {
   const tache = {
     id: `${identifiant(texte).slice(0, 40)}-${Date.now().toString(36)}`, texte,
     quand: f.elements.quand.value.trim(), details: "", echeance: f.elements.echeance.value || null,
+    categorie: f.elements.categorie.value,
     ajouteLe: aujourdHui(), fait: false, faitLe: null,
   };
   await modifie("todo", d => { d.taches.push(tache); }, `To do : ${texte}`);
