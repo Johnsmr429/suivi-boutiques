@@ -532,6 +532,10 @@ function ouvreFiche(id, neuve = false) {
   };
 
   rendu();
+  // Entrée dans la note du journal l'ajoute, comme le bouton.
+  dialogue.onkeydown = ev => {
+    if (ev.key === "Enter" && ev.target.name === "journal.texte") { ev.preventDefault(); dialogue.querySelector("#ajoute-entree").click(); }
+  };
   dialogue.onclick = async ev => {
     const b = ev.target.closest("button");
     if (!b) { if (ev.target === dialogue) dialogue.close(); return; }
