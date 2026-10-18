@@ -299,6 +299,63 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 .bulle .l i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; margin-right: 5px; }
 .bulle .t { border-top: 1px solid rgba(255,255,255,.25); margin-top: 4px; padding-top: 4px; font-weight: 600; }
 
+/* La feuille A4 : toujours claire, comme du papier, à l'écran comme à l'impression. */
+.barre-feuille { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.barre-feuille select { background: var(--carte); border: 1px solid var(--filet); border-radius: 8px; padding: 8px 10px; font-size: 16px; color: var(--encre); max-width: 100%; }
+.barre-feuille .note { flex-basis: 100%; }
+.feuille {
+  --f-encre: #1f2a2c; --f-doux: #55605f; --f-filet: #ddd6c8; --f-or: #a8741a; --f-or-lavis: #f7efdf; --f-vert: #2e6a4c; --f-vert-lavis: #e8f1eb;
+  background: #fffdf9; color: var(--f-encre); width: 210mm; max-width: 100%; min-height: 297mm; margin: 0 auto; padding: 13mm 14mm 11mm;
+  box-shadow: 0 2px 14px rgba(0,0,0,.25); display: grid; gap: 3.6mm; align-content: start; font-size: 10.2pt; line-height: 1.38; color-scheme: light;
+}
+.feuille h1 { font-size: 17pt; line-height: 1.18; color: var(--f-encre); }
+.feuille h2 { font-size: 12pt; color: var(--f-encre); }
+.f-tete { display: grid; grid-template-columns: auto 1fr auto; gap: 4mm; align-items: center; border-bottom: 2px solid var(--f-encre); padding-bottom: 3mm; }
+.f-logo { width: 15mm; height: 15mm; border-radius: 3.4mm; }
+.f-marque { display: grid; }
+.f-marque strong { font-family: var(--affiche); font-size: 16pt; }
+.f-marque span, .f-pour { color: var(--f-doux); font-size: 8.8pt; }
+.f-pour { text-align: right; line-height: 1.35; }
+.f-pour strong { color: var(--f-encre); font-size: 10pt; }
+.f-intro { color: var(--f-doux); }
+.f-deja { background: var(--f-vert-lavis); border-left: 3px solid var(--f-vert); padding: 2.2mm 3mm; border-radius: 1.5mm; }
+.f-captures { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; align-items: start; }
+.f-captures figure { margin: 0; display: grid; gap: 1.8mm; }
+.f-captures img, .f-attente { width: 100%; height: 60mm; object-fit: cover; object-position: top; border-radius: 3mm; border: 1px solid var(--f-filet); display: block; background: #222; }
+.f-attente { display: grid; place-items: center; color: #aaa; }
+.f-captures figure:nth-child(3) img { object-position: left top; }
+.f-captures figcaption { font-size: 8.8pt; color: var(--f-doux); line-height: 1.3; }
+.f-captures b { display: inline-grid; place-items: center; width: 4.6mm; height: 4.6mm; border-radius: 50%; background: var(--f-or); color: #fff; font-size: 8pt; margin-right: 1mm; }
+.f-deux { display: grid; grid-template-columns: 1fr 1.5fr; gap: 4mm; }
+.f-boite { border: 1.2px solid var(--f-filet); border-radius: 2.5mm; padding: 3mm 3.5mm; display: grid; gap: 1.5mm; align-content: start; }
+.f-boite h2 span { font-family: var(--texte); font-weight: 400; font-size: 9pt; color: var(--f-doux); }
+.f-boite ul { margin: 0; padding-left: 4mm; display: grid; gap: .8mm; }
+.f-partenaire { border-color: var(--f-vert); background: var(--f-vert-lavis); }
+.f-offre { display: grid; grid-template-columns: 42mm 1fr; border: 1.6px solid var(--f-or); border-radius: 3mm; overflow: hidden; }
+.f-offre-titre { background: var(--f-or); color: #fff; padding: 3mm; display: grid; align-content: center; gap: .8mm; }
+.f-offre-titre span { font-size: 8.5pt; letter-spacing: .08em; text-transform: uppercase; }
+.f-offre-titre strong { font-family: var(--affiche); font-size: 15pt; line-height: 1.1; }
+.f-offre-corps { background: var(--f-or-lavis); padding: 3mm 3.5mm; display: grid; gap: 1.2mm; }
+.f-places { font-size: 9pt; color: var(--f-doux); }
+.f-etapes { margin: 0; padding-left: 5mm; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4mm; font-size: 9.2pt; }
+.f-etapes li::marker { color: var(--f-or); font-weight: 700; }
+.f-pied { display: flex; justify-content: space-between; border-top: 1px solid var(--f-filet); padding-top: 2.5mm; font-size: 9.5pt; color: var(--f-doux); }
+.f-pied strong { color: var(--f-encre); }
+@media (max-width: 760px) {
+  .feuille { padding: 16px; min-height: 0; }
+  .f-captures, .f-deux, .f-etapes, .f-offre { grid-template-columns: 1fr; }
+  .f-captures img, .f-attente { height: auto; max-height: 420px; }
+}
+@media print {
+  body.en-feuille { padding: 0; background: #fff; }
+  body.en-feuille .chapeau, body.en-feuille .pied, body.en-feuille .barre-feuille { display: none !important; }
+  body.en-feuille main { max-width: none; gap: 0; }
+  body.en-feuille .feuille { box-shadow: none; width: auto; min-height: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body.en-feuille .f-captures, body.en-feuille .f-etapes { grid-template-columns: repeat(3, 1fr); }
+  body.en-feuille .f-deux { grid-template-columns: 1fr 1.5fr; }
+  body.en-feuille .f-offre { grid-template-columns: 42mm 1fr; }
+  body.en-feuille .f-captures img { height: 60mm; }
+}
 /* Écran de la clé */
 .porte .logo-app { width: 64px; height: 64px; border-radius: 15px; }
 .porte { max-width: 560px; margin: 8vh auto 0; background: var(--carte); border: 1px solid var(--filet); border-radius: 14px; padding: 22px; display: grid; gap: 14px; }
@@ -312,7 +369,7 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
   section, .boite, tr { break-inside: avoid; }
   .questions details { border: 0; padding: 0; }
   .questions details p { display: block; }
-  @page { margin: 12mm; }
+  @page { size: A4 portrait; margin: 12mm; }
 }
 </style>
 </head>
@@ -365,6 +422,9 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 
   <!-- La simulation des revenus -->
   <div class="vue" id="vue-simulation" hidden></div>
+
+  <!-- La feuille A4 à laisser au comptoir -->
+  <div class="vue" id="vue-feuille" hidden></div>
 
   <!-- La liste des choses à faire -->
   <div class="vue" id="vue-todo" hidden></div>
@@ -582,9 +642,14 @@ function afficheErreur(e) {
 
 // ---------- Les vues ----------
 
-const VUES = ["suivi", "offre", "simulation", "courriels", "todo", "facturation"];
+const VUES = ["suivi", "offre", "simulation", "courriels", "todo", "facturation", "feuille"];
+let maisonDeLaFeuille = null;
 function montreVue(nom) {
+  const [base, parametre] = String(nom || "").split("/");
+  if (base === "feuille") maisonDeLaFeuille = parametre ? decodeURIComponent(parametre) : maisonDeLaFeuille;
+  nom = base;
   vue = VUES.includes(nom) ? nom : "suivi";
+  document.body.classList.toggle("en-feuille", vue === "feuille");
   for (const v of VUES) document.getElementById(`vue-${v}`).hidden = v !== vue;
   document.querySelectorAll(".onglets a").forEach(a => { if (a.dataset.vue === vue) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
   document.getElementById("ajouter").hidden = vue !== "suivi";
@@ -597,6 +662,7 @@ function dessine() {
   if (vue === "simulation") dessineSimulation();
   if (vue === "facturation") dessineFacturation();
   if (vue === "todo") dessineTodo();
+  if (vue === "feuille") dessineFeuille();
   if (vue === "courriels") dessineCourriels();
 }
 
@@ -686,14 +752,15 @@ function dessineListe() {
 // Les logos des maisons vivent dans le dépôt privé (logos/…) : lus avec la clé,
 // gardés en mémoire le temps de la visite. Sans logo, un monogramme.
 const logos = {};
-async function chargeLesLogos() {
-  const chemins = [...new Set(D().maisons.map(m => m.logo).filter(Boolean))].filter(c => !(c in logos));
+async function chargeLesLogos(autres = []) {
+  const chemins = [...new Set([...D().maisons.map(m => m.logo), ...autres].filter(Boolean))].filter(c => !(c in logos));
   await Promise.all(chemins.map(async chemin => {
     try {
       const r = await fetch(`${urlDu(chemin)}?ref=${DEPOT.branche}`, { headers: entetes() });
       if (!r.ok) return;
       const j = await r.json();
-      logos[chemin] = `data:image/png;base64,${j.content.replace(/\s/g, "")}`;
+      const type = /\.jpe?g$/i.test(chemin) ? "image/jpeg" : "image/png";
+      logos[chemin] = `data:${type};base64,${j.content.replace(/\s/g, "")}`;
     } catch {}
   }));
   if (chemins.length) dessine();
@@ -1256,6 +1323,81 @@ async function ajouteTache() {
   await modifie("todo", d => { d.taches.push(tache); }, `To do : ${texte}`);
 }
 
+// ---------- La feuille A4 ----------
+
+// Une page à imprimer et à laisser au comptoir, préparée pour une fromagerie : ce
+// qu'elle gagne, trois captures de l'app, l'offre fondateur à son nombre d'adresses.
+// Les captures et les prix viennent du dépôt privé, jamais de la page publique.
+const CAPTURES = ["feuille/carte.jpg", "feuille/page.jpg", "feuille/ou-acheter.jpg"];
+function dessineFeuille() {
+  const m = D().maisons.find(x => x.id === maisonDeLaFeuille) || D().maisons[0];
+  if (!CAPTURES.every(c => c in logos)) chargeLesLogos(CAPTURES);
+  avecDevise(deviseDe(m), () => dessineFeuilleDe(m));
+}
+function dessineFeuilleDe(m) {
+  const n = Math.max(1, m.adresses.length), p = prixPour(n), t = D().tarifs.fondateur;
+  const pays = paysDe(m), places = placesRestantes(pays);
+  const taxes = deviseCourante === "EUR" ? "Hors taxes (TVA autoliquidée par la fromagerie)." : "Avant taxes : TPS et TVQ en sus, récupérables par la fromagerie.";
+  const image = c => logos[c] ? `<img src="${logos[c]}" alt="">` : `<div class="f-attente">Chargement…</div>`;
+  const options = [...D().maisons].sort((a, b) => a.nom.localeCompare(b.nom, "fr"))
+    .map(x => `<option value="${echappe(x.id)}" ${x.id === m.id ? "selected" : ""}>${echappe(x.nom)}</option>`).join("");
+  document.getElementById("vue-feuille").innerHTML = `
+    <div class="barre-feuille">
+      <a class="bouton discret" href="#suivi">← Retour</a>
+      <select id="maison-feuille" aria-label="Fromagerie">${options}</select>
+      <button type="button" class="bouton plein" id="imprimer">Imprimer</button>
+      <p class="note">Format A4, une page. Dans la fenêtre d'impression : marges par défaut, sans en-têtes ni pieds de page, « graphiques d'arrière-plan » cochés.</p>
+    </div>
+    <article class="feuille">
+      <header class="f-tete">
+        <img class="f-logo" src="img/fromaglobe.png" alt="">
+        <div class="f-marque"><strong>FromaGlobe</strong><span>Les fromages du monde, dans une app iPhone et iPad</span></div>
+        <div class="f-pour">Préparé pour<br><strong>${echappe(m.nom)}</strong><br>${dateLisible(aujourdHui())}</div>
+      </header>
+
+      <h1>Quand un amateur lit la fiche d'un fromage que vous vendez, l'app lui dit où l'acheter : chez vous.</h1>
+      <p class="f-intro">FromaGlobe décrit ${echappe(D().catalogue?.texte || "plus de 2 400")} fromages du monde : histoire, fabrication, dégustation, accords. Une carte situe chaque fromagerie, et chaque amateur tient le carnet des fromages qu'il a goûtés et de ceux qu'il veut découvrir.</p>
+      ${m.enPlace ? `<p class="f-deja">${echappe(m.enPlace)}</p>` : ""}
+
+      <div class="f-captures">
+        <figure>${image(CAPTURES[0])}<figcaption><b>1</b> Votre comptoir sur la carte, avec l'itinéraire, le téléphone et le site.</figcaption></figure>
+        <figure>${image(CAPTURES[1])}<figcaption><b>2</b> Votre page : vos fromages reliés aux fiches, vos arrivages, vos événements.</figcaption></figure>
+        <figure>${image(CAPTURES[2])}<figcaption><b>3</b> Sur la fiche de chaque fromage que vous vendez, « Où l'acheter » mène chez vous.</figcaption></figure>
+      </div>
+
+      <div class="f-deux">
+        <section class="f-boite">
+          <h2>Présence <span>gratuite, toujours</span></h2>
+          <ul><li>Votre épingle sur la carte</li><li>Adresse, horaires, Itinéraire, Appeler, Site</li><li>Retirée sur simple demande</li></ul>
+        </section>
+        <section class="f-boite f-partenaire">
+          <h2>Partenaire</h2>
+          <ul><li>Votre vitrine reliée aux fiches, et « Où l'acheter »</li><li>Votre tuile sur l'accueil de l'app</li><li>Le plateau de fromages composé avec votre vitrine</li><li>Vos arrivages : les amateurs qui attendaient ce fromage sont prévenus</li><li>Vos événements : dégustations, ateliers</li><li>Chaque mois, les chiffres de votre page</li></ul>
+        </section>
+      </div>
+
+      <section class="f-offre">
+        <div class="f-offre-titre"><span>Offre fondateur</span><strong>${t.moisOfferts} mois offerts</strong></div>
+        <div class="f-offre-corps">
+          <p>Puis <strong>${dollars(p.fondateur)} par mois</strong> pour ${n === 1 ? "votre adresse" : `vos ${n} adresses`}, <strong>prix bloqué ${t.anneesBloquees} ans</strong>.</p>
+          <p>Mise en place ${n === 1 ? "offerte" : `: ${dollars(p.miseEnPlaceFondateur)} (offerte sur la première adresse)`}. ${taxes}</p>
+          <p class="f-places">Réservée aux ${placesDe(pays)} premières fromageries (une place par fromagerie, quel que soit le nombre d'adresses) : ${places === placesDe(pays) ? `les ${places} places sont libres` : `il reste ${places} place${places > 1 ? "s" : ""}`}.</p>
+        </div>
+      </section>
+
+      <ol class="f-etapes">
+        <li><strong>On se parle</strong> au comptoir, quinze minutes.</li>
+        <li><strong>Je relie votre liste de caisse</strong> aux fiches : codes PLU et libellés seulement, aucun montant ni quantité.</li>
+        <li><strong>Vous annoncez</strong> vos arrivages et vos événements depuis l'app, en quelques secondes.</li>
+      </ol>
+
+      <footer class="f-pied">
+        <span><strong>John</strong>, créateur de FromaGlobe</span>
+        <span>fromaglobe@gmail.com</span>
+      </footer>
+    </article>`;
+}
+
 // ---------- Les courriels ----------
 
 // Les valeurs que les modèles citent entre accolades.
@@ -1460,7 +1602,7 @@ function ouvreFiche(id, neuve = false) {
           </div>
         </div>
         <footer>
-          ${neuve ? `<span class="doux" id="fiche-etat"></span>` : `<button type="button" class="bouton discret" id="ecrire">Écrire un courriel</button><span class="doux" id="fiche-etat"></span>`}
+          ${neuve ? `<span class="doux" id="fiche-etat"></span>` : `<span class="rangee-boutons"><button type="button" class="bouton discret" id="ecrire">Écrire un courriel</button><button type="button" class="bouton discret" id="feuille">Feuille à imprimer</button></span><span class="doux" id="fiche-etat"></span>`}
           <button class="bouton plein" type="button" id="enregistrer">Enregistrer</button>
         </footer>
       </form>`;
@@ -1492,6 +1634,10 @@ function ouvreFiche(id, neuve = false) {
     if (!b) { if (ev.target === dialogue) dialogue.close(); return; }
     if (b.id === "fermer") {
       dialogue.close();
+    } else if (b.id === "feuille") {
+      if (modifiee()) { dialogue.querySelector("#fiche-etat").textContent = "Enregistre d'abord tes changements."; return; }
+      dialogue.close();
+      location.hash = `feuille/${encodeURIComponent(m.id)}`;
     } else if (b.id === "ecrire") {
       if (modifiee()) { dialogue.querySelector("#fiche-etat").textContent = "Enregistre d'abord tes changements."; return; }
       dialogue.close();
@@ -1592,7 +1738,7 @@ document.getElementById("entrer").onclick = async () => {
   else montreLaPorte(r.message === "cle" ? "Clé refusée par GitHub." : r.message === "introuvable" ? "Cette clé n'a pas accès au dépôt suivi-boutiques-donnees." : `Impossible de joindre GitHub (${r.message}).`);
 };
 document.getElementById("champ-cle").addEventListener("keydown", e => { if (e.key === "Enter") document.getElementById("entrer").click(); });
-window.addEventListener("hashchange", () => { if (D()) montreVue(location.hash.slice(1)); });
+window.addEventListener("hashchange", () => { if (D()) montreVue(decodeURIComponent(location.hash.slice(1))); });
 document.getElementById("filtres").onclick = e => { const b = e.target.closest("[data-filtre]"); if (b) { filtre = b.dataset.filtre; dessineFiltres(); dessineListe(); } };
 document.getElementById("liste").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
 document.getElementById("a-faire").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
@@ -1617,6 +1763,8 @@ document.getElementById("vue-simulation").addEventListener("change", e => {
   const y = scrollY; dessineSimulation(); scrollTo(0, y);
   const meme = document.querySelector(`[data-sim="${cle}"]`); if (meme) meme.focus({ preventScroll: true });
 });
+document.getElementById("vue-feuille").addEventListener("click", e => { if (e.target.id === "imprimer") window.print(); });
+document.getElementById("vue-feuille").addEventListener("change", e => { if (e.target.id === "maison-feuille") location.hash = `feuille/${encodeURIComponent(e.target.value)}`; });
 document.getElementById("vue-todo").addEventListener("click", async e => {
   const b = e.target.closest("[data-basculer], [data-supprimer], #ajouter-tache");
   if (!b) return;
