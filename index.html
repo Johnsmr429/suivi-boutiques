@@ -123,6 +123,22 @@ section > header { display: grid; gap: 4px; }
 .s-signee { background: var(--vert-lavis); color: var(--vert); }
 .s-refus { background: var(--rouge-lavis); color: var(--rouge); }
 
+/* Photos des maisons */
+.p-oui { background: var(--vert-lavis); color: var(--vert); }
+.p-attente { background: var(--bleu-lavis); color: var(--bleu); }
+.p-reponse, .p-accuse { background: var(--or-lavis); color: var(--or); }
+.p-refus, .p-rebond, .p-echec { background: var(--rouge-lavis); color: var(--rouge); }
+.recherche-photos { width: 100%; max-width: 420px; padding: 8px 12px; border: 1px solid var(--filet); border-radius: 10px; background: var(--carte); color: var(--encre); font: inherit; min-height: 40px; }
+.lignes-photos { display: grid; gap: 8px; }
+.ligne-photo { background: var(--carte); border: 1px solid var(--filet); border-radius: 12px; padding: 12px 14px; min-width: 0; }
+.ligne-photo > summary { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; cursor: pointer; list-style: none; }
+.ligne-photo > summary::-webkit-details-marker { display: none; }
+.ligne-photo .nom { font-weight: 600; overflow-wrap: anywhere; }
+.ligne-photo .meta { grid-column: 1 / -1; font-size: .85rem; color: var(--encre-douce); overflow-wrap: anywhere; }
+.ligne-photo .corps { display: grid; gap: 10px; margin-top: 10px; border-top: 1px solid var(--filet); padding-top: 10px; font-size: .9rem; }
+.ligne-photo .envoi { display: grid; gap: 2px; overflow-wrap: anywhere; }
+.ligne-photo .noms { color: var(--encre-douce); overflow-wrap: anywhere; }
+
 /* À faire */
 .a-faire { display: grid; gap: 8px; }
 .a-faire button {
@@ -398,6 +414,7 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
       <a href="#simulation" data-vue="simulation"><img class="ico" src="img/medaille-champion.png" alt="">Simulation</a>
       <a href="#courriels" data-vue="courriels"><img class="ico" src="img/carnet-page.png" alt="">Courriels</a>
       <a href="#todo" data-vue="todo"><img class="ico" src="img/carnet-quete.png" alt="">To do</a>
+      <a href="#photos" data-vue="photos"><img class="ico" src="img/medaille-or.png" alt="">Photos</a>
       <a href="#facturation" data-vue="facturation"><img class="ico" src="img/calendrier.png" alt="">Facturation</a>
     </nav>
     <p class="etat" id="etat" role="status" aria-live="polite"></p>
@@ -428,6 +445,7 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 
   <!-- La liste des choses à faire -->
   <div class="vue" id="vue-todo" hidden></div>
+  <div class="vue" id="vue-photos" hidden></div>
 
   <!-- La facturation : taxes, mentions, devises -->
   <div class="vue" id="vue-facturation" hidden></div>
@@ -460,7 +478,7 @@ textarea.long { min-height: 320px; font-size: 15px; line-height: 1.5; }
 
 // Où vivent les données : deux fichiers dans un dépôt privé.
 const DEPOT = { proprietaire: "Johnsmr429", nom: "suivi-boutiques-donnees", branche: "main" };
-const FICHIERS = { demarches: "demarches.json", modeles: "modeles.json", todo: "todo.json" };
+const FICHIERS = { demarches: "demarches.json", modeles: "modeles.json", todo: "todo.json", photos: "photos.json" };
 const CLE_STOCKEE = "fromaglobe.suivi.cle";
 const ADRESSE_FROMAGLOBE = "fromaglobe@gmail.com";
 
@@ -476,7 +494,7 @@ const nomDuStatut = id => (STATUTS.find(s => s.id === id) || STATUTS[0]).nom;
 
 let cle = null;
 // Le contenu et l'empreinte (sha) de chaque fichier, tels que lus sur GitHub.
-const fichiers = { demarches: { donnees: null, sha: null }, modeles: { donnees: null, sha: null }, todo: { donnees: null, sha: null } };
+const fichiers = { demarches: { donnees: null, sha: null }, modeles: { donnees: null, sha: null }, todo: { donnees: null, sha: null }, photos: { donnees: null, sha: null } };
 const D = () => fichiers.demarches.donnees;
 let filtre = "toutes";
 let vue = "suivi";
@@ -642,7 +660,7 @@ function afficheErreur(e) {
 
 // ---------- Les vues ----------
 
-const VUES = ["suivi", "offre", "simulation", "courriels", "todo", "facturation", "feuille"];
+const VUES = ["suivi", "offre", "simulation", "courriels", "todo", "photos", "facturation", "feuille"];
 let maisonDeLaFeuille = null;
 function montreVue(nom) {
   const [base, parametre] = String(nom || "").split("/");
@@ -662,6 +680,7 @@ function dessine() {
   if (vue === "simulation") dessineSimulation();
   if (vue === "facturation") dessineFacturation();
   if (vue === "todo") dessineTodo();
+  if (vue === "photos") dessinePhotos();
   if (vue === "feuille") dessineFeuille();
   if (vue === "courriels") dessineCourriels();
 }
@@ -1323,6 +1342,76 @@ async function ajouteTache() {
   await modifie("todo", d => { d.taches.push(tache); }, `To do : ${texte}`);
 }
 
+// ---------- Photos des maisons ----------
+
+// Les demandes de photos aux fromageries, lues dans photos.json : ce fichier est écrit par
+// Claude (scripts/registre_demandes.py exporter, dans le dépôt de l'app) après chaque passe
+// sur les courriels. La page ne fait que lire : le registre se reconstruit depuis le suivi.
+const STATUTS_PHOTOS = [
+  ["attente", "En attente", m => m.statut === "en attente"],
+  ["oui", "Oui", m => m.statut === "oui"],
+  ["reponse", "Réponse sans oui", m => m.statut === "réponse"],
+  ["accuse", "Accusé de réception", m => m.statut === "accusé"],
+  ["refus", "Refus", m => m.statut === "refus"],
+  ["rebond", "Rebond ou échec", m => m.statut === "rebond" || m.statut === "échec"],
+];
+const classeDuStatutPhoto = m => (STATUTS_PHOTOS.find(([, , t]) => t(m)) || ["attente"])[0];
+const nomDuStatutPhoto = m => (STATUTS_PHOTOS.find(([, , t]) => t(m)) || [0, "En attente"])[1];
+let filtrePhotos = "toutes";
+let cherchePhotos = "";
+function dessinePhotos() {
+  const P = fichiers.photos.donnees || { maisons: [] };
+  const maisons = P.maisons || [];
+  const el = document.getElementById("vue-photos");
+  if (!maisons.length) {
+    el.innerHTML = `<section><h2 class="titre-section"><img class="ico-titre" src="img/medaille-or.png" alt="">Photos des maisons</h2><p class="vide">Pas encore de registre : je l'écris ici après la prochaine passe sur les courriels.</p></section>`;
+    return;
+  }
+  const somme = (liste, k) => liste.reduce((s, m) => s + (m[k] || []).length, 0);
+  const oui = maisons.filter(m => m.statut === "oui");
+  const repondu = maisons.filter(m => !["en attente", "rebond", "échec"].includes(m.statut));
+  const aVenir = maisons.flatMap(m => m.envois.filter(e => e.statutEnvoi === "programmé" && e.prevuLe >= aujourdHui()).map(e => ({ m, e })))
+    .sort((a, b) => a.e.prevuLe.localeCompare(b.e.prevuLe) || a.m.maison.localeCompare(b.m.maison, "fr"));
+  const q = cherchePhotos.trim().toLowerCase();
+  const choisies = maisons
+    .filter(m => filtrePhotos === "toutes" || classeDuStatutPhoto(m) === filtrePhotos)
+    .filter(m => !q || [m.maison, ...m.adresses, ...m.fichesConcernees].some(t => String(t).toLowerCase().includes(q)))
+    .sort((a, b) => b.dernierEnvoi.localeCompare(a.dernierEnvoi) || a.maison.localeCompare(b.maison, "fr"));
+  const compte = id => id === "toutes" ? maisons.length : maisons.filter(m => classeDuStatutPhoto(m) === id).length;
+  const ligne = m => `<details class="ligne-photo">
+    <summary>
+      <span class="nom">${echappe(m.maison)}</span><span class="pastille p-${classeDuStatutPhoto(m)}">${nomDuStatutPhoto(m)}</span>
+      <span class="meta">${dateCourte(m.dernierEnvoi)}${m.envois.length > 1 ? ` · ${m.envois.length} envois` : ""} · ${echappe(m.adresses.join(", "))}<br>
+        <span class="chiffre">${m.fichesConcernees.length}</span> fiche${m.fichesConcernees.length > 1 ? "s" : ""} concernée${m.fichesConcernees.length > 1 ? "s" : ""} · <span class="chiffre">${m.sansPhoto.length}</span> encore sans photo · <span class="chiffre">${m.fichesGagnees.length}</span> gagnée${m.fichesGagnees.length > 1 ? "s" : ""}</span>
+    </summary>
+    <div class="corps">
+      ${m.envois.map(e => `<div class="envoi"><strong>${dateCourte(e.date)}${e.lot ? ` · lot ${echappe(e.lot)}` : ""}</strong><span>${echappe(e.envoi)}</span>${e.reponse && e.reponse !== "—" ? `<span class="doux">Réponse : ${echappe(e.reponse)}</span>` : ""}</div>`).join("")}
+      ${m.fichesGagnees.length ? `<div><span class="etiquette">Photos gagnées</span><div class="noms">${echappe(m.fichesGagnees.join(", "))}</div></div>` : ""}
+      ${m.sansPhoto.length ? `<div><span class="etiquette">Encore sans photo</span><div class="noms">${echappe(m.sansPhoto.join(", "))}</div></div>` : ""}
+    </div>
+  </details>`;
+  el.innerHTML = `
+    <div class="tableau-de-bord">
+      <div class="tuile"><span class="etiquette">Maisons écrites</span><span class="valeur">${maisons.length}</span><span class="sous">${repondu.length} ont répondu</span></div>
+      <div class="tuile"><span class="etiquette">Ont dit oui</span><span class="valeur">${oui.length}</span><span class="sous">${Math.round(100 * oui.length / maisons.length)} % des maisons écrites</span></div>
+      <div class="tuile"><span class="etiquette">Fiches gagnées</span><span class="valeur">${somme(maisons, "fichesGagnees")}</span><span class="sous">photos autorisées posées</span></div>
+      <div class="tuile"><span class="etiquette">Fiches concernées</span><span class="valeur">${somme(maisons, "fichesConcernees")}</span><span class="sous">${somme(maisons, "sansPhoto")} encore sans photo</span></div>
+    </div>
+    <section aria-labelledby="t-a-venir">
+      <h2 id="t-a-venir" class="titre-section"><img class="ico-titre" src="img/calendrier.png" alt="">Programmés, à partir</h2>
+      <div class="a-faire">${aVenir.length ? aVenir.map(({ m, e }) => `<button type="button" data-cherche="${echappe(m.maison)}"><span><strong>${echappe(m.maison)}</strong> · ${echappe(m.adresses[0] || "")}</span><span class="quand">${dateCourte(e.prevuLe)}</span></button>`).join("") : `<p class="vide">Aucun envoi programmé.</p>`}</div>
+    </section>
+    <section aria-labelledby="t-photos">
+      <header><h2 id="t-photos" class="titre-section"><img class="ico-titre" src="img/medaille-or.png" alt="">Les maisons écrites</h2>
+        <p class="note">Une maison par ligne : chaque envoi, la réponse, les fiches qu'elle touche et celles qu'elle a fait gagner. Registre du ${dateLisible(P.genereLe)}, reconstruit par Claude après chaque passe sur les courriels. Avant tout nouveau courriel, Claude vérifie ici et dans Gmail que la maison n'a jamais été écrite ; une relance ne part que si tu la demandes.</p></header>
+      <input class="recherche-photos" id="cherche-photos" type="search" placeholder="Chercher une maison, une adresse, un fromage…" aria-label="Chercher" value="${echappe(cherchePhotos)}">
+      <div class="filtres" role="toolbar" aria-label="Filtrer par réponse">
+        ${[["toutes", "Toutes"], ...STATUTS_PHOTOS].filter(([id]) => id === "toutes" || compte(id) > 0).map(([id, nom]) => `<button class="filtre" data-filtre-photos="${id}" aria-pressed="${filtrePhotos === id}">${nom} <span class="chiffre">${compte(id)}</span></button>`).join("")}
+      </div>
+      <div class="lignes-photos">${choisies.length ? choisies.map(ligne).join("") : `<p class="vide">Aucune maison.</p>`}</div>
+    </section>`;
+}
+
 // ---------- La feuille A4 ----------
 
 // Une page à imprimer et à laisser au comptoir, préparée pour une fromagerie : ce
@@ -1699,14 +1788,16 @@ async function charge() {
   etat("Lecture du suivi…");
   try {
     const absent = vide => e => { if (e.message === "introuvable") return { donnees: vide, sha: undefined }; throw e; };
-    const [demarches, modeles, todo] = await Promise.all([
+    const [demarches, modeles, todo, photos] = await Promise.all([
       lisLeFichier(FICHIERS.demarches),
       lisLeFichier(FICHIERS.modeles).catch(absent({ version: 1, modeles: [] })),
       lisLeFichier(FICHIERS.todo).catch(absent({ version: 1, taches: [] })),
+      lisLeFichier(FICHIERS.photos).catch(absent({ genereLe: null, maisons: [] })),
     ]);
     fichiers.demarches = demarches;
     fichiers.modeles = modeles;
     fichiers.todo = todo;
+    fichiers.photos = photos;
     document.getElementById("porte").hidden = true;
     document.getElementById("app").hidden = false;
     etat(`À jour · modifié le ${dateLisible(D().modifieLe.slice(0, 10))}.`);
@@ -1764,6 +1855,20 @@ document.getElementById("vue-simulation").addEventListener("change", e => {
   const meme = document.querySelector(`[data-sim="${cle}"]`); if (meme) meme.focus({ preventScroll: true });
 });
 document.getElementById("vue-feuille").addEventListener("click", e => { if (e.target.id === "imprimer") window.print(); });
+document.getElementById("vue-photos").addEventListener("click", e => {
+  const f = e.target.closest("[data-filtre-photos]");
+  if (f) { filtrePhotos = f.dataset.filtrePhotos; dessinePhotos(); return; }
+  const c = e.target.closest("[data-cherche]");
+  if (c) { cherchePhotos = c.dataset.cherche; filtrePhotos = "toutes"; dessinePhotos(); }
+});
+document.getElementById("vue-photos").addEventListener("input", e => {
+  if (e.target.id !== "cherche-photos") return;
+  cherchePhotos = e.target.value;
+  const debut = e.target.selectionStart;
+  dessinePhotos();
+  const champ = document.getElementById("cherche-photos");
+  champ.focus(); champ.setSelectionRange(debut, debut);
+});
 document.getElementById("vue-feuille").addEventListener("change", e => { if (e.target.id === "maison-feuille") location.hash = `feuille/${encodeURIComponent(e.target.value)}`; });
 document.getElementById("vue-todo").addEventListener("click", async e => {
   const b = e.target.closest("[data-basculer], [data-supprimer], #ajouter-tache");
