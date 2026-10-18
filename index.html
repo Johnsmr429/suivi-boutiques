@@ -977,7 +977,11 @@ document.getElementById("filtres").onclick = e => { const b = e.target.closest("
 document.getElementById("liste").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
 document.getElementById("a-faire").onclick = e => { const b = e.target.closest("[data-maison]"); if (b) ouvreFiche(b.dataset.maison); };
 document.getElementById("vue-offre").addEventListener("change", e => { if (e.target.id === "nb-adresses") { adressesCalculees = Number(e.target.value); dessineOffre(); } });
-document.getElementById("modeles").onclick = e => { const b = e.target.closest("[data-modele]"); if (b) { modeleChoisi = b.dataset.modele; dessineCourriels(); } };
+document.getElementById("modeles").onclick = e => { const b = e.target.closest("[data-modele]"); if (b) {
+  modeleChoisi = b.dataset.modele; dessineCourriels();
+  // Sur un téléphone, l'aperçu est sous la liste : on y descend.
+  if (innerWidth < 760) document.getElementById("apercu").scrollIntoView({ behavior: "smooth", block: "start" });
+} };
 document.getElementById("maison-courriel").onchange = e => { maisonDuCourriel = e.target.value; dessineCourriels(); };
 document.getElementById("ajouter").onclick = nouvelleMaison;
 document.getElementById("recharger").onclick = async () => { const r = await charge(); if (r !== true) afficheErreur(r); };
