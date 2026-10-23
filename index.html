@@ -582,6 +582,9 @@ function prixPour(n) {
 const tarifs = m => prixPour(m.adresses.length);
 function prixRetenu(m) { const t = tarifs(m); return m.fondateur ? t.fondateur : t.standard; }
 const placesDe = pays => (PAYS()[pays] || {}).places ?? D().placesFondateur;
+// Les 3 mois offerts commencent à la mise en ligne de l'app sur l'App Store
+// (décision du 23 octobre 2026) : une signature d'avant la sortie part de la sortie.
+const départ = m => { const l = D().lancementApp; return l && m.signeLe && l > m.signeLe ? l : m.signeLe; };
 function placesRestantes(pays = "Canada") {
   const prises = D().maisons.filter(m => paysDe(m) === pays && m.statut === "signee" && m.fondateur).length;
   return Math.max(0, placesDe(pays) - prises);
@@ -712,11 +715,12 @@ function dessineAFaire() {
       items.push({ m, quand: m.prochaineRelance, quoi: m.statut === "rencontre" ? "Rencontre" : "Relancer" });
     }
     if (m.statut === "signee" && m.signeLe) {
-      const facture = plusMois(m.signeLe, m.fondateur ? t.moisOfferts : 0);
+      if (!D().lancementApp) continue;
+      const facture = plusMois(départ(m), m.fondateur ? t.moisOfferts : 0);
       const j = joursJusqua(facture);
       if (j >= 0 && j <= 14) items.push({ m, quand: facture, quoi: "Première facture" });
       if (m.fondateur) {
-        const fin = plusMois(m.signeLe, 12 * t.anneesBloquees);
+        const fin = plusMois(départ(m), 12 * t.anneesBloquees);
         const k = joursJusqua(fin);
         if (k >= 0 && k <= 45) items.push({ m, quand: fin, quoi: "Fin du prix fondateur" });
       }
@@ -835,7 +839,7 @@ function dessineOffreDansSaDevise() {
         <div class="boite partenaire">
           <div class="tete-boite"><img src="img/boutique-devanture.png" alt=""><div><span class="etiquette">Payant</span><h3>Partenaire</h3></div></div>
           <span class="prix-grand">dès ${dollars(p1.fondateur)}<span class="doux" style="font-size:.9rem"> par mois, fondateur</span></span>
-          <ul><li>Tout de la présence, plus :</li><li>Vitrine reliée aux fiches</li><li>« Où l'acheter » sur chaque fromage vendu</li><li>Tuile à l'accueil de l'app</li><li>Plateau composé avec son stock</li><li>Arrivages (14 jours) et événements</li><li>Rapport mensuel de sa page</li></ul>
+          <ul><li>Tout de la présence, plus :</li><li>Vitrine reliée aux fiches</li><li>« Où l'acheter » sur chaque fromage vendu</li><li>Tuile à l'accueil de l'app</li><li>Plateau composé avec son stock</li><li>Arrivages (14 jours) et événements</li><li>Bilan de sa page tous les 3 ou 6 mois, au choix</li></ul>
         </div>
       </div>
       <div class="tableau comparaison"><table>
@@ -850,7 +854,7 @@ function dessineOffreDansSaDevise() {
           <tr><td>Mode partenaire : elle trie sa vitrine elle-même</td>${non}${oui}</tr>
           <tr><td>Arrivages, et bulle aux amateurs qui attendaient ce fromage</td>${non}${oui}</tr>
           <tr><td>Événements : dégustations, ateliers</td>${non}${oui}</tr>
-          <tr><td>Statistiques de sa page</td><td class="non">Mesurées, montrées pour proposer le partenariat</td><td class="oui">Rapport chaque mois</td></tr>
+          <tr><td>Statistiques de sa page</td><td class="non">Mesurées, montrées pour proposer le partenariat</td><td class="oui">Bilan tous les 3 ou 6 mois</td></tr>
         </tbody>
       </table></div>
     </section>
@@ -903,10 +907,10 @@ function dessineOffreDansSaDevise() {
         <details><summary>« Combien de monde utilise l'app ? »</summary><p><mark>[CHIFFRE À JOUR]</mark>. C'est justement le sens du tarif fondateur : ${t.fondateur.moisOfferts} mois offerts et un prix bloqué ${t.fondateur.anneesBloquees} ans pendant que l'audience grandit. Le rapport mensuel montre ce que la page rapporte vraiment.</p></details>
         <details><summary>« Ça me demande quoi comme travail ? »</summary><p>La mise en place, c'est moi, à partir de l'export de caisse. Ensuite, quand elle veut : quelques secondes pour annoncer un arrivage (« Arrivé »), une minute pour un événement, et le tri rapide de la vitrine de temps en temps.</p></details>
         <details><summary>« Que faites-vous de mes données de caisse ? »</summary><p>Seulement les codes PLU et les libellés (et, si elle veut les fréquences, la date de dernière vente et le nombre de semaines vendues). Aucun montant, aucune quantité. L'app dit « vendu chez », jamais « en stock ».</p></details>
-        <details><summary>« Les statistiques, c'est quoi ? »</summary><p>Chaque mois : ouvertures de sa page, demandes d'itinéraire, appels, visites de son site, plateaux composés avec sa vitrine, mises en favori. Anonymes : l'app ne connaît ni le nom ni la position de ses utilisateurs.</p></details>
+        <details><summary>« Les statistiques, c'est quoi ? »</summary><p>Tous les 3 ou 6 mois, au choix : ouvertures de sa page, demandes d'itinéraire, appels, visites de son site, plateaux composés avec sa vitrine, mises en favori. Anonymes : l'app ne connaît ni le nom ni la position de ses utilisateurs.</p></details>
         <details><summary>« On a plusieurs adresses : ça prend combien de places fondateur ? »</summary><p>Une seule. Une place par fromagerie, quel que soit son nombre d'adresses : chaque adresse a le prix fondateur (${dollars(t.fondateur.premiere)} la première, ${dollars(t.fondateur.suivante)} chaque suivante). Une adresse ouverte pendant les ${t.fondateur.anneesBloquees} ans s'ajoute aussi au tarif fondateur, jusqu'à la fin.</p></details>
         <details><summary>« Mes concurrents seront là aussi ? »</summary><p>Oui, la présence ne promet aucune exclusivité, à personne. Toutes les fromageries peuvent être sur la carte. Le partenaire se distingue par sa vitrine, sa tuile et « Où l'acheter ».</p></details>
-        <details><summary>« Et si je veux arrêter ? »</summary><p><mark>[À DÉCIDER : par exemple chaque mois, sur simple courriel, sans frais]</mark>. Son logo et sa liste sont retirés sur simple demande, à la mise à jour suivante.</p></details>
+        <details><summary>« Et si je veux arrêter ? »</summary><p>Sans engagement : la résiliation se fait sur simple courriel et prend effet à la fin du mois en cours. Le tarif fondateur n'est plus accordé après une résiliation. Son logo et sa liste sont retirés sur simple demande, à la mise à jour suivante.</p></details>
       </div>
     </section>
     <p class="note">Pour imprimer cette page : Fichier, puis Imprimer. Prix validés le 18 octobre 2026, à revoir après 6 mois de statistiques.</p>`;
@@ -1461,7 +1465,7 @@ function dessineFeuilleDe(m) {
         </section>
         <section class="f-boite f-partenaire">
           <h2>Partenaire</h2>
-          <ul><li>Votre vitrine reliée aux fiches, et « Où l'acheter »</li><li>Votre tuile sur l'accueil de l'app</li><li>Le plateau de fromages composé avec votre vitrine</li><li>Vos arrivages : les amateurs qui attendaient ce fromage sont prévenus</li><li>Vos événements : dégustations, ateliers</li><li>Chaque mois, les chiffres de votre page</li></ul>
+          <ul><li>Votre vitrine reliée aux fiches, et « Où l'acheter »</li><li>Votre tuile sur l'accueil de l'app</li><li>Le plateau de fromages composé avec votre vitrine</li><li>Vos arrivages : les amateurs qui attendaient ce fromage sont prévenus</li><li>Vos événements : dégustations, ateliers</li><li>Un bilan de votre page tous les 3 ou 6 mois, au choix</li></ul>
         </section>
       </div>
 
@@ -1470,6 +1474,7 @@ function dessineFeuilleDe(m) {
         <div class="f-offre-corps">
           <p>Puis <strong>${dollars(p.fondateur)} par mois</strong> pour ${n === 1 ? "votre adresse" : `vos ${n} adresses`}, <strong>prix bloqué ${t.anneesBloquees} ans</strong>.</p>
           <p>Mise en place ${n === 1 ? "offerte" : `: ${dollars(p.miseEnPlaceFondateur)} (offerte sur la première adresse)`}. ${taxes}</p>
+          <p>Les 3 mois offerts commencent à la mise en ligne de l'app sur l'App Store. Sans engagement : la résiliation se fait sur simple courriel et prend effet à la fin du mois en cours.</p>
           <p class="f-places">Réservée aux ${placesDe(pays)} premières fromageries (une place par fromagerie, quel que soit le nombre d'adresses) : ${places === placesDe(pays) ? `les ${places} places sont libres` : `il reste ${places} place${places > 1 ? "s" : ""}`}.</p>
         </div>
       </section>
@@ -1517,8 +1522,8 @@ function variablesDansSaDevise(m) {
     taxes: deviseCourante === "EUR" ? "hors taxes, TVA due par le preneur (autoliquidation)" : "TPS (5 %) et TVQ (9,975 %) en sus",
     placesRestantes: `${places} place${places > 1 ? "s" : ""}`,
     signeLe: signe ? dateLisible(m.signeLe) : "[DATE DE SIGNATURE]",
-    premiereFacture: signe ? dateLisible(plusMois(m.signeLe, t.moisOfferts)) : "[DATE DE PREMIÈRE FACTURE]",
-    finPrixBloque: signe ? dateLisible(plusMois(m.signeLe, 12 * t.anneesBloquees)) : "[DATE DE FIN DU PRIX FONDATEUR]",
+    premiereFacture: signe && D().lancementApp ? dateLisible(plusMois(départ(m), t.moisOfferts)) : "[DATE DE PREMIÈRE FACTURE]",
+    finPrixBloque: signe && D().lancementApp ? dateLisible(plusMois(départ(m), 12 * t.anneesBloquees)) : "[DATE DE FIN DU PRIX FONDATEUR]",
     aujourdhui: dateLisible(aujourdHui()),
   };
 }
@@ -1614,9 +1619,11 @@ function ouvreFiche(id, neuve = false) {
   const renduDansSaDevise = () => {
     const t = tarifs(m);
     const offerts = D().tarifs.fondateur.moisOfferts, bloque = D().tarifs.fondateur.anneesBloquees;
-    const calcule = m.signeLe ? (m.fondateur
-      ? `<span>Première facture : <strong>${dateLisible(plusMois(m.signeLe, offerts))}</strong> (${offerts} mois offerts)</span><span>Prix fondateur bloqué jusqu'au <strong>${dateLisible(plusMois(m.signeLe, 12 * bloque))}</strong></span>`
-      : `<span>Première facture : <strong>${dateLisible(m.signeLe)}</strong></span>`) : "";
+    const calcule = m.signeLe ? (!D().lancementApp
+      ? `<span>Les ${offerts} mois offerts commencent à la mise en ligne de l'app sur l'App Store (date pas encore posée dans le suivi).</span>`
+      : m.fondateur
+      ? `<span>Première facture : <strong>${dateLisible(plusMois(départ(m), offerts))}</strong> (${offerts} mois offerts depuis la mise en ligne)</span><span>Prix fondateur bloqué jusqu'au <strong>${dateLisible(plusMois(départ(m), 12 * bloque))}</strong></span>`
+      : `<span>Première facture : <strong>${dateLisible(départ(m))}</strong></span>`) : "";
     const miseEnPlace = m.fondateur
       ? `<span>Mise en place : ${t.miseEnPlaceFondateur ? dollars(t.miseEnPlaceFondateur) : "offerte"}</span>`
       : `<span>Mise en place : ${dollars(t.miseEnPlacePetite)} (moins de 300 articles) ou ${dollars(t.miseEnPlaceGrande)}</span>`;
